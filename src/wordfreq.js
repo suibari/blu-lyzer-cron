@@ -36,9 +36,16 @@ export async function getNounFrequencies(posts, sliceNum) {
       }
 
       const freqMap = {};
+      const freqMapToday = {};
 
       posts.forEach(post => {
         const text = post.value.text;
+        
+        // textがnull, undefined, 空文字でないことを確認
+        if (typeof text !== 'string' || text.trim() === '') {
+          return; // 空の場合は処理をスキップ
+        }
+      
         const tokens = tokenizer.tokenize(text);
         const nouns = tokens.filter(token => 
           token.pos === '名詞' &&
@@ -53,12 +60,23 @@ export async function getNounFrequencies(posts, sliceNum) {
           const surfaceForm = noun.surface_form;
           freqMap[surfaceForm] = (freqMap[surfaceForm] || 0) + 1;
         });
-      });
+
+        // 24h以内のポストは別に集計
+        const createdAt = new Date(post.value.createdAt);
+        const yesterday = new Date(new Date().getTime() - (24 * 60 * 60 * 1000)); // 現在時刻から24h前
+        if (createdAt > yesterday) {
+          nouns.forEach(noun => {
+            const surfaceForm = noun.surface_form;
+            freqMapToday[surfaceForm] = (freqMapToday[surfaceForm] || 0) + 1;
+          });
+        }
+      });      
 
       const sortedData = Object.entries(freqMap).sort((a, b) => b[1] - a[1]); // スコアでソート
+      const sortedDataToday = Object.entries(freqMapToday).sort((a, b) => b[1] - a[1]);
       const sortedNouns = sortedData.map(([noun]) => noun).slice(0, 3); // 名詞の配列TOP3
       
-      resolve({ sortedNouns, sortedData });
+      resolve({ sortedNouns, sortedData, sortedDataToday });
     });
   });
 }

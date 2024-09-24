@@ -54,6 +54,7 @@ export async function analyzeRecords(records) {
   const wordFreqMap = await getNounFrequencies(records.posts, WORDFREQ_SLICE_NUM);
   result.wordFreqMap = wordFreqMap.sortedNouns;
   result.wordFreqFullMap = wordFreqMap.sortedData;
+  result.wordFreqFullMapToday = wordFreqMap.sortedDataToday;
 
   // 最近の仲良し分析
   // リプライ
