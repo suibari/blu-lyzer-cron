@@ -51,7 +51,7 @@ export async function analyzeRecords(records) {
   result.lastActionTime = lastActionTime;
 
   // 頻出単語分析
-  const wordFreqMap = await getNounFrequencies(records.posts, WORDFREQ_SLICE_NUM);
+  const wordFreqMap = await getNounFrequencies(records.posts);
   result.wordFreqMap = wordFreqMap.sortedNouns;
   result.wordFreqFullMap = wordFreqMap.sortedData;
   result.wordFreqFullMapToday = wordFreqMap.sortedDataToday;
