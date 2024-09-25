@@ -1,3 +1,4 @@
+import fs from 'fs';
 import kuromoji from 'kuromoji';
 import path, { resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -27,6 +28,10 @@ const __dirname = path.dirname(__filename);
 const dicPath = "node_modules/kuromoji/dict";
 const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
 
+// 感情辞書ファイルパス
+const POLARITY_DICT_PATH = path.resolve(__dirname, '../dict/pn.csv.m3.120408.trim');
+const polarityMap = await loadPolarityDictionary(); // 感情辞書をロード
+
 /**
  * テキストの配列から名詞の頻出TOP3を返す関数
  */
@@ -38,7 +43,6 @@ export async function getNounFrequencies(posts) {
       }
 
       const freqMap = {};
-      const freqMapToday = {};
 
       posts.forEach(post => {
         let text = post.value.text;
@@ -65,20 +69,25 @@ export async function getNounFrequencies(posts) {
               !/ー{2,}/.test(token.surface_form) && // 伸ばし棒2文字以上の単語を除外
               !EXCLUDE_WORDS.includes(token.surface_form) // EXCLUDE_WORDSに含まれていない
             );
+            const createdAt = new Date(post.value.createdAt); // ポストの作成日時を取得
             nouns.forEach(noun => {
+              
               const surfaceForm = noun.surface_form;
-              freqMap[surfaceForm] = (freqMap[surfaceForm] || 0) + 1;
+              const sentimentScore = polarityMap[surfaceForm] || 0;
+
+              if (!freqMap[surfaceForm]) {
+                freqMap[surfaceForm] = {
+                  count: 0,
+                  firstSeen: createdAt,
+                  lastSeen: createdAt,
+                  sentimentScoreSum: 0 // 感情スコア合計
+                };
+              }
+              freqMap[surfaceForm].count++;
+              freqMap[surfaceForm].lastSeen = createdAt;
+              freqMap[surfaceForm].sentimentScoreSum += sentimentScore; // 感情スコアを加算
             });
 
-            // 24h以内のポストは別に集計
-            const createdAt = new Date(post.value.createdAt);
-            const yesterday = new Date(new Date().getTime() - (24 * 60 * 60 * 1000)); // 現在時刻から24h前
-            if (createdAt > yesterday) {
-              nouns.forEach(noun => {
-                const surfaceForm = noun.surface_form;
-                freqMapToday[surfaceForm] = (freqMapToday[surfaceForm] || 0) + 1;
-              });
-            }
           } catch (err) {
             console.warn(`[WARN] word analyze error occur: ${post}`);
           }
@@ -89,11 +98,44 @@ export async function getNounFrequencies(posts) {
         }
       });      
 
-      const sortedData = Object.entries(freqMap).sort((a, b) => b[1] - a[1]); // スコアでソート
-      const sortedDataToday = Object.entries(freqMapToday).sort((a, b) => b[1] - a[1]);
-      const sortedNouns = sortedData.map(([noun]) => noun).slice(0, 3); // 名詞の配列TOP3
-      
-      resolve({ sortedNouns, sortedData, sortedDataToday });
+      const sortedData = Object.entries(freqMap)
+        .sort(([, a], [, b]) => b.count - a.count)
+        .map(([noun, data]) => ({
+          noun,
+          count: data.count,
+          firstSeen: data.firstSeen,
+          lastSeen: data.lastSeen,
+          sentimentScore: data.sentimentScoreSum
+        }));
+
+      resolve( sortedData );
+    });
+  });
+}
+
+/**
+ * 感情辞書を読み込み、単語とスコアのマップを作成
+ * @returns {Promise<Object>} 単語と感情スコアのマップ
+ */
+async function loadPolarityDictionary() {
+  const polarityMap = {};
+
+  return new Promise((resolve, reject) => {
+    fs.readFile(POLARITY_DICT_PATH, 'utf8', (err, data) => {
+      if (err) {
+        return reject(err);
+      }
+
+      const lines = data.split('\n');
+      lines.forEach(line => {
+        const [word, score] = line.split('\t'); // タブ区切りで単語と感情値を取得
+        if (word && score) {
+          // ポジティブ => +1、ネガティブ => -1、中立 => 0
+          polarityMap[word] = score === 'p' ? 1 : score === 'n' ? -1 : 0;
+        }
+      });
+
+      resolve(polarityMap);
     });
   });
 }
