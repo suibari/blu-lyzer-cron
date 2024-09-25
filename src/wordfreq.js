@@ -16,6 +16,8 @@ const EXCLUDE_WORDS = [
   "全て", "すべて", "みんな", "全部", "他", "他人", "誰か",
   "ところ", "くらい", "ぐらい", "けど", "けれども", "ただ", "ため", "どう", "何故", "なぜ", "どんな", "どの", "だれ", "これ", "それ", "あれ", "ここ", "そこ", "あそこ",
   "http", "www", "html", "php", "net", "org", "ftp", "co", "io", "jp", "www", "mailto", // インターネット
+  "bsky", "social", // Bluesky
+  "to", "the", "of", "you", "be", "in", "is", "it", "for", "that", "on" // 英語
 ];
 
 const __filename = fileURLToPath(import.meta.url);
@@ -40,35 +42,42 @@ export async function getNounFrequencies(posts, sliceNum) {
 
       posts.forEach(post => {
         const text = post.value.text;
-        
+
         // textがnull, undefined, 空文字でないことを確認
         if (typeof text !== 'string' || text.trim() === '') {
           return; // 空の場合は処理をスキップ
         }
-      
-        const tokens = tokenizer.tokenize(text);
-        const nouns = tokens.filter(token => 
-          token.pos === '名詞' &&
-          !/^[\d]+$/.test(token.surface_form) && // 数値の除外
-          !/^[^\p{L}]+$/u.test(token.surface_form) && // 記号の除外
-          !/^[ぁ-ん]{1}$/.test(token.surface_form) && // ひらがな一文字の除外
-          token.surface_form.length !== 1 && // 1文字のみの単語を除外
-          !/ー{2,}/.test(token.surface_form) && // 伸ばし棒2文字以上の単語を除外
-          !EXCLUDE_WORDS.includes(token.surface_form) // EXCLUDE_WORDSに含まれていない
-        );
-        nouns.forEach(noun => {
-          const surfaceForm = noun.surface_form;
-          freqMap[surfaceForm] = (freqMap[surfaceForm] || 0) + 1;
-        });
 
-        // 24h以内のポストは別に集計
-        const createdAt = new Date(post.value.createdAt);
-        const yesterday = new Date(new Date().getTime() - (24 * 60 * 60 * 1000)); // 現在時刻から24h前
-        if (createdAt > yesterday) {
+        // 日本語ポストであることを確認
+        if (post.value.langs.includes("ja")) {   
+        
+          const tokens = tokenizer.tokenize(text);
+          const nouns = tokens.filter(token => 
+            token.pos === '名詞' &&
+            !/^[\d]+$/.test(token.surface_form) && // 数値の除外
+            !/^[^\p{L}]+$/u.test(token.surface_form) && // 記号の除外
+            !/^[ぁ-ん]{1}$/.test(token.surface_form) && // ひらがな一文字の除外
+            token.surface_form.length !== 1 && // 1文字のみの単語を除外
+            !/ー{2,}/.test(token.surface_form) && // 伸ばし棒2文字以上の単語を除外
+            !EXCLUDE_WORDS.includes(token.surface_form) // EXCLUDE_WORDSに含まれていない
+          );
           nouns.forEach(noun => {
             const surfaceForm = noun.surface_form;
-            freqMapToday[surfaceForm] = (freqMapToday[surfaceForm] || 0) + 1;
+            freqMap[surfaceForm] = (freqMap[surfaceForm] || 0) + 1;
           });
+
+          // 24h以内のポストは別に集計
+          const createdAt = new Date(post.value.createdAt);
+          const yesterday = new Date(new Date().getTime() - (24 * 60 * 60 * 1000)); // 現在時刻から24h前
+          if (createdAt > yesterday) {
+            nouns.forEach(noun => {
+              const surfaceForm = noun.surface_form;
+              freqMapToday[surfaceForm] = (freqMapToday[surfaceForm] || 0) + 1;
+            });
+          }
+        } else {
+          // 日本語でないポストの場合、現状何もしない
+          return;
         }
       });      
 

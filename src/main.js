@@ -7,7 +7,7 @@ const agent = new Blueskyer();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 const SUPABASE_PAGE_SIZE = 1000;
-// const BULK_RANDOM_SIZE = 1000; // この行のコメントアウトで全レコード取得
+const BULK_RANDOM_SIZE = 6000;
 const CHUNK_SIZE = 100; // 500だとsupabaseのtimeoutが発生する
 
 console.log('start batch process');
@@ -55,7 +55,7 @@ console.log('start batch process');
 
     // ランダムにrowを選ぶ
     let handles = [];
-    if (BULK_RANDOM_SIZE) {
+    if (BULK_RANDOM_SIZE > data.length) {
       const shuffledData = shuffle([...data]);  // 元の配列を破壊しないようにコピーしてシャッフル
       const selectedData = shuffledData.slice(0, BULK_RANDOM_SIZE);
       handles = selectedData.map(row => row.handle);
