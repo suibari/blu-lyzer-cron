@@ -1,3 +1,4 @@
+import { PUBLIC_NODE_ENV } from '$env/static/public' 
 import fs from 'fs';
 import kuromoji from 'kuromoji';
 import path, { resolve } from 'path';
@@ -29,7 +30,7 @@ const dicPath = "node_modules/kuromoji/dict";
 const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
 
 // 感情辞書ファイルパス
-const POLARITY_DICT_PATH = path.resolve(__dirname, '../dict/pn.csv.m3.120408.trim');
+const POLARITY_DICT_PATH = PUBLIC_NODE_ENV ? 'src/lib/server/submodule/dict/pn.csv.m3.120408.trim' : path.resolve(__dirname, '../dict/pn.csv.m3.120408.trim');
 const polarityMap = await loadPolarityDictionary(); // 感情辞書をロード
 
 /**
