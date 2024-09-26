@@ -7,14 +7,13 @@ const agent = new Blueskyer();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 const SUPABASE_PAGE_SIZE = 1000;
-const BULK_RANDOM_SIZE = 2000;
+const BULK_RANDOM_SIZE = 5000;
 const CHUNK_SIZE = 100; // 500だとsupabaseのtimeoutが発生する
 
 console.log('start batch process');
 
 (async() => {
-  const bulkData = [];
-
+  
   try {
     // ---------------------
     // blueskyログイン
@@ -55,7 +54,7 @@ console.log('start batch process');
 
     // ランダムにrowを選ぶ
     let handles = [];
-    if (BULK_RANDOM_SIZE > data.length) {
+    if (BULK_RANDOM_SIZE < data.length) {
       const shuffledData = shuffle([...data]);  // 元の配列を破壊しないようにコピーしてシャッフル
       const selectedData = shuffledData.slice(0, BULK_RANDOM_SIZE);
       handles = selectedData.map(row => row.handle);
@@ -92,41 +91,28 @@ console.log('start batch process');
 
       // 解析
       const analyze = await analyzeRecords(records);
-      bulkData.push({
+      const data = {
         handle: handle,
         result_analyze: analyze,
-      });
+      };
       console.log(`successful to analyze: ${handle}, ${i}/${handles.length}`);
-      i++;
-    };
 
-    // ---------------------
-    // データ整形
-    // profileがbulkDataにある場合セット、なければnullセット
-    const profileMap = Object.fromEntries(profiles.map(p => [p.handle, p]));
-    bulkData.forEach(bulkItem => {
-      bulkItem.profile = profileMap[bulkItem.handle] || null;
-    });
-    bulkData.forEach(bulkItem => {
-      bulkItem.updated_at = new Date();
-    });
-    bulkData.forEach(bulkItem => {
-      bulkItem.records = null;
-    });
+      // profileがbulkDataにある場合セット、なければnullセット
+      const profileMap = Object.fromEntries(profiles.map(p => [p.handle, p]));
+      data.profile = profileMap[handle] || null;
+      data.records = null;
+      data.updated_at = new Date();
 
-    // ---------------------
-    // DB格納
-    console.log(bulkData);
-    const bulkChunks = chunkArray(bulkData, CHUNK_SIZE);
-    for (const chunk of bulkChunks) {
-      const result = await supabase.from('records').upsert(chunk).select();
+      // ---------------------
+      // DB格納
+      // console.log(bulkData);
+      const result = await supabase.from('records').upsert(data).select();
       if (result.error) {
         console.log(result.error);
-      } else {
-        console.log(`finish upsert: ${chunk.length}`);
       }
-    }
-    
+
+      i++;
+    };    
   } catch (error) {
     console.error(`Error:`, error);
   }
@@ -139,13 +125,4 @@ function shuffle(array) {
     [array[i], array[j]] = [array[j], array[i]];
   }
   return array;
-}
-
-// チャンク分割の関数
-function chunkArray(array, size) {
-  const chunkedArr = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunkedArr.push(array.slice(i, i + size));
-  }
-  return chunkedArr;
 }

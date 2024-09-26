@@ -43,6 +43,7 @@ export async function getNounFrequencies(posts) {
       }
 
       const freqMap = {};
+      const sentimentHeatmap = new Array(24).fill(0) // 24時間ヒートマップを初期化
 
       posts.forEach(post => {
         let text = post.value.text;
@@ -69,7 +70,12 @@ export async function getNounFrequencies(posts) {
               !/ー{2,}/.test(token.surface_form) && // 伸ばし棒2文字以上の単語を除外
               !EXCLUDE_WORDS.includes(token.surface_form) // EXCLUDE_WORDSに含まれていない
             );
-            const createdAt = new Date(post.value.createdAt); // ポストの作成日時を取得
+
+            const createdAt = new Date(post.value.createdAt);
+            const utcDate = new Date(createdAt.getTime());
+            const jstDate = new Date(utcDate.getTime() + 9*60*60*1000); // JSTに変換
+            const hourKey = jstDate.getUTCHours(); // JSTの時間を取得
+
             nouns.forEach(noun => {
               
               const surfaceForm = noun.surface_form;
@@ -80,16 +86,25 @@ export async function getNounFrequencies(posts) {
                   count: 0,
                   firstSeen: createdAt,
                   lastSeen: createdAt,
-                  sentimentScoreSum: 0 // 感情スコア合計
+                  sentimentScoreSum: 0, // 感情スコア合計
+                  occurrences: [],
                 };
               }
               freqMap[surfaceForm].count++;
               freqMap[surfaceForm].lastSeen = createdAt;
               freqMap[surfaceForm].sentimentScoreSum += sentimentScore; // 感情スコアを加算
+              sentimentHeatmap[hourKey] += sentimentScore;
+
+              // occurrencesにポストIDと日時を追加
+              freqMap[surfaceForm].occurrences.push({
+                timestamp: createdAt,
+                postId: post.uri,
+              });
             });
 
           } catch (err) {
-            console.warn(`[WARN] word analyze error occur: ${post}`);
+            console.warn(`[WARN] word analyze error occur`);
+            console.warn(err);
           }
           
         } else {
@@ -98,17 +113,18 @@ export async function getNounFrequencies(posts) {
         }
       });      
 
-      const sortedData = Object.entries(freqMap)
+      const wordFreqMap = Object.entries(freqMap)
         .sort(([, a], [, b]) => b.count - a.count)
         .map(([noun, data]) => ({
           noun,
           count: data.count,
           firstSeen: data.firstSeen,
           lastSeen: data.lastSeen,
-          sentimentScore: data.sentimentScoreSum
+          sentimentScore: data.sentimentScoreSum,
+          occurrences: data.occurrences,
         }));
 
-      resolve( sortedData );
+      resolve({ wordFreqMap, sentimentHeatmap });
     });
   });
 }

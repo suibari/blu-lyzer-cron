@@ -51,7 +51,9 @@ export async function analyzeRecords(records) {
   result.lastActionTime = lastActionTime;
 
   // 頻出単語分析
-  result.wordFreqMap = await getNounFrequencies(records.posts);
+  const { wordFreqMap, sentimentHeatmap } = await getNounFrequencies(records.posts);
+  result.wordFreqMap = wordFreqMap;
+  result.sentimentHeatmap = sentimentHeatmap;
 
   // ポスト文字数分析
   const totalTextLength = records.posts.reduce((total, post) => {
