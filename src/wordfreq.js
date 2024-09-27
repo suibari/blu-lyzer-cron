@@ -26,11 +26,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Kuromoji tokenizerのビルダー
-const dicPath = (PUBLIC_NODE_ENV === 'development') ? "node_modules/kuromoji/dict" : resolve(__dirname, '../../../../node_modules/kuromoji/dict') ;
+const dicPath = (PUBLIC_NODE_ENV === 'development') ?
+  "node_modules/kuromoji/dict" : 
+  resolve(__dirname, '../../../../../../node_modules/kuromoji/dict') ; // to: server-root/.svelte-kit/src/lib/server/submodule/src
 const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
 
 // 感情辞書ファイルパス
-const POLARITY_DICT_PATH = (PUBLIC_NODE_ENV === 'development') ? resolve(__dirname, '../dict/pn.csv.m3.120408.trim') : resolve(__dirname, '../../../../src/lib/server/submodule/dict/pn.csv.m3.120408.trim');
+const POLARITY_DICT_PATH = (PUBLIC_NODE_ENV === 'development') ?
+  resolve(__dirname, '../dict/pn.csv.m3.120408.trim') :
+  resolve(__dirname, '../../../../../../src/lib/server/submodule/dict/pn.csv.m3.120408.trim'); // to: server-root/.svelte-kit/src/lib/server/submodule/src
 const polarityMap = await loadPolarityDictionary(); // 感情辞書をロード
 
 /**
