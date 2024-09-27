@@ -33,8 +33,8 @@ const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
 
 // 感情辞書ファイルパス
 const POLARITY_DICT_PATH = (PUBLIC_NODE_ENV === 'development') ?
-  resolve(__dirname, '../dict/pn.csv.m3.120408.trim') :
-  resolve(__dirname, '../../../../submodule/dict/pn.csv.m3.120408.trim'); // to: server-root/.svelte-kit/output/server/submodule/dict
+  'src/lib/server/submodule/dict/pn.csv.m3.120408.trim' :
+  resolve(__dirname, '../../../../src/lib/server/submodule/dict/pn.csv.m3.120408.trim'); // to: server-root/.svelte-kit/output/server/submodule/dict
 const polarityMap = await loadPolarityDictionary(); // 感情辞書をロード
 
 /**
