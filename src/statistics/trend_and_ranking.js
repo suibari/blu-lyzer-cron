@@ -85,6 +85,7 @@ import { supabase, getAllRows } from '../lib/supabase.js'
   
   // デストラクチャリングで `averageInterval` を直接取得
   const rankingAddict = data
+    .filter(row => row.averageInterval && row.averageInterval !== 0)
     .map(row => ({
       handle: row.handle,
       averageInterval: row.averageInterval
@@ -92,6 +93,7 @@ import { supabase, getAllRows } from '../lib/supabase.js'
     .sort((a, b) => a.averageInterval - b.averageInterval);
 
   const rankingInfluencer = data
+    .filter(row => row.averageInterval && row.averageInterval !== 0)
     .map(row => {
       if (row.profile) {
         const followersCount = row.profile.followersCount;
