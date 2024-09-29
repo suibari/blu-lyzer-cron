@@ -93,18 +93,16 @@ import { supabase, getAllRows } from '../lib/supabase.js'
     .sort((a, b) => a.averageInterval - b.averageInterval);
 
   const rankingInfluencer = data
-    .filter(row => row.averageInterval && row.averageInterval !== 0)
+    .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0)
     .map(row => {
-      if (row.profile) {
-        const followersCount = row.profile.followersCount;
-        const followsCount = row.profile.followsCount;
-        // (followersCount / followsCount) * followersCount を計算
-        const metric = (followersCount / followsCount) * followersCount;
-        return {
-          handle: row.handle,
-          metric: metric
-        };
-      }
+      const followersCount = row.profile.followersCount;
+      const followsCount = row.profile.followsCount;
+      // (followersCount / followsCount) * followersCount を計算
+      const metric = Math.round((followersCount / followsCount) * followersCount);
+      return {
+        handle: row.handle,
+        metric: metric
+      };
     })
     .sort((a, b) => b.metric - a.metric);  // 降順ソート
   
