@@ -1,8 +1,10 @@
-import { PUBLIC_NODE_ENV } from '$env/static/public' 
+import dotenv from 'dotenv';
 import fs from 'fs';
 import kuromoji from 'kuromoji';
 import path, { resolve } from 'path';
 import { fileURLToPath } from 'url';
+dotenv.config();
+const PUBLIC_NODE_ENV = process.env.PUBLIC_NODE_ENV;
 
 const EXCLUDE_WORDS = [
   "こと", "これ", "それ", "そう", "どこ", 
@@ -26,15 +28,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Kuromoji tokenizerのビルダー
-const dicPath = (PUBLIC_NODE_ENV === 'development') ?
-  "node_modules/kuromoji/dict" : 
-  resolve(__dirname, '../../../../../../../node_modules/kuromoji/dict') ; // to: server-root/.svelte-kit/output/server/submodule/dict
+const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? "node_modules/kuromoji/dict" : // Local Env
+  resolve(__dirname, '../../../../../../../node_modules/kuromoji/dict') ; // Vercel Env
 const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
 
 // 感情辞書ファイルパス
-const POLARITY_DICT_PATH = (PUBLIC_NODE_ENV === 'development') ?
-  'src/lib/server/submodule/dict/pn.csv.m3.120408.trim' :
-  resolve(__dirname, '../../../../../../../src/lib/server/submodule/dict/pn.csv.m3.120408.trim'); // to: server-root/.svelte-kit/output/server/submodule/dict
+const POLARITY_DICT_PATH = (PUBLIC_NODE_ENV === 'development') ? 'src/lib/server/submodule/dict/pn.csv.m3.120408.trim' : // Local Env
+  (PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../dict/pn.csv.m3.120408.trim') : // Raspi Cron Server
+  resolve(__dirname, '../../../../../../../src/lib/server/submodule/dict/pn.csv.m3.120408.trim'); // Vercel Env
 const polarityMap = await loadPolarityDictionary(); // 感情辞書をロード
 
 /**
