@@ -72,7 +72,11 @@ console.log('start batch process');
     let response;
     let i = 0;
     for (const handle of handles) {
-      const records = {};
+      let records = {
+        posts: [],
+        likes: [],
+        repost: []
+      };
     
       // ポスト100件取得
       response = await agent.listRecords({repo: handle, collection: "app.bsky.feed.post", limit: 100}).catch(e => {
@@ -88,7 +92,7 @@ console.log('start batch process');
         return { records: [] };
       });
       records.likes = response.records;
-      // いいね100件取得
+      // リポスト100件取得
       response = await agent.listRecords({repo: handle, collection: "app.bsky.feed.repost", limit: 100}).catch(e => {
         console.error(e);
         console.warn(`[WARN] fetch error handle: ${handle}, so set empty object`);
