@@ -11,7 +11,7 @@ import { supabase, getAllRows } from '../lib/supabase.js'
   const trendsIncRate = [];
 
   // trends、rankingまとめて取得
-  data = await getAllRows({tableName: 'records', selectCol: 'handle, result_analyze->wordFreqMap, result_analyze->averageInterval, profile'});
+  data = await getAllRows({tableName: 'records', selectCol: 'handle, result_analyze->wordFreqMap, result_analyze->averageInterval, result_analyze->lastActionTime, profile'});
 
   console.log(`trends and ranking: got wordFreqMap: ${data.length}`);
 
@@ -19,37 +19,41 @@ import { supabase, getAllRows } from '../lib/supabase.js'
   // result_analyze.wordFreqFullMapがあれば、それをマージしていく
   // マージ処理
   const now = new Date(); // 現在時刻
+  const quarterDay = new Date(now.getTime() - 6 * 60 * 60 * 1000); // 6時間前
+  const halfDay = new Date(now.getTime() - 12 * 60 * 60 * 1000); // 12時間前
   const today = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24時間前
   const yesterday = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48時間前
 
   data.forEach(row => {
     row.wordFreqMap.forEach(word => {
+      const refDate = today;
+      const tgtDate = yesterday;
       const occurrences = word.occurrences;
 
-      let countToday = 0;
+      let countRef = 0;
       occurrences.forEach(occurrence => {
         const occurrenceTime = new Date(occurrence.timestamp);
-        if (occurrenceTime >= today && occurrenceTime <= now) {
-          countToday++;
+        if (occurrenceTime >= refDate && occurrenceTime <= now) {
+          countRef++;
         };
       });
 
-      let countYesterday = 0;
+      let countTgt = 0;
       occurrences.forEach(occurrence => {
         const occurrenceTime = new Date(occurrence.timestamp);
-        if (occurrenceTime >= yesterday && occurrenceTime < today) {
-          countYesterday++;
+        if (occurrenceTime >= tgtDate && occurrenceTime < refDate) {
+          countTgt++;
         };
       });
 
       // 今日のトレンド
       trendsToday.push({
         noun: word.noun,
-        count: countToday,
+        count: countRef,
       });
 
       // 昨日から今日にかけての増加率
-      const incRate = countToday / (countYesterday || 1);
+      const incRate = countRef / (countTgt || 0.5);
       trendsIncRate.push({
         noun: word.noun,
         count: incRate,
@@ -85,7 +89,7 @@ import { supabase, getAllRows } from '../lib/supabase.js'
   
   // デストラクチャリングで `averageInterval` を直接取得
   const rankingAddict = data
-    .filter(row => row.averageInterval && row.averageInterval !== 0)
+    .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
     .map(row => ({
       handle: row.handle,
       averageInterval: row.averageInterval
