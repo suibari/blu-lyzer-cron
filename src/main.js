@@ -84,21 +84,21 @@ console.log('start batch process');
         console.warn(`[WARN] fetch error handle: ${handle}, so set empty object`);
         return { records: [] };
       });
-      records.posts = response.records;
+      records.posts = response.records || [];
       // いいね100件取得
       response = await agent.listRecords({repo: handle, collection: "app.bsky.feed.like", limit: 100}).catch(e => {
         console.error(e);
         console.warn(`[WARN] fetch error handle: ${handle}, so set empty object`);
         return { records: [] };
       });
-      records.likes = response.records;
+      records.likes = response.records || [];
       // リポスト100件取得
       response = await agent.listRecords({repo: handle, collection: "app.bsky.feed.repost", limit: 100}).catch(e => {
         console.error(e);
         console.warn(`[WARN] fetch error handle: ${handle}, so set empty object`);
         return { records: [] };
       });
-      records.repost = response.records;
+      records.repost = response.records || [];
 
       // 解析
       const analyze = await analyzeRecords(records);
