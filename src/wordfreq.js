@@ -21,7 +21,9 @@ const EXCLUDE_WORDS = [
   "ところ", "くらい", "ぐらい", "けど", "けれども", "ただ", "ため", "どう", "何故", "なぜ", "どんな", "どの", "だれ", "これ", "それ", "あれ", "ここ", "そこ", "あそこ",
   "http", "www", "html", "php", "net", "org", "ftp", "co", "io", "jp", "www", "mailto", // インターネット
   "bsky", "social", // Bluesky
-  "to", "the", "of", "you", "be", "in", "is", "it", "for", "that", "on" // 英語
+  "to", "the", "of", "you", "be", "in", "is", "it", "for", "that", "on", // 英語
+  "ちんぽ", // R-18
+  "なん", "あと", "うち", // 運用してみていらないもの
 ];
 
 const __filename = fileURLToPath(import.meta.url);
