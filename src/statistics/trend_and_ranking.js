@@ -102,6 +102,8 @@ import { supabase, getAllRows } from '../lib/supabase.js'
     .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
     .map(row => ({
       handle: row.handle,
+      name: row.profile.displayName || 'Unknown',
+      img: row.profile.avatar || '/img/defaultavator.png',
       averageInterval: row.averageInterval
     }))
     .sort((a, b) => a.averageInterval - b.averageInterval);
@@ -115,6 +117,8 @@ import { supabase, getAllRows } from '../lib/supabase.js'
       const metric = Math.round((followersCount / followsCount) * followersCount);
       return {
         handle: row.handle,
+        name: row.profile.displayName,
+        img: row.profile.avatar || '/img/defaultavator.png',
         metric: metric
       };
     })
