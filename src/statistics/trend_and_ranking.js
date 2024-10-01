@@ -26,8 +26,8 @@ import { supabase, getAllRows } from '../lib/supabase.js'
 
   data.forEach(row => {
     row.wordFreqMap.forEach(word => {
-      const refDate = today;
-      const tgtDate = yesterday;
+      const refDate = quarterDay;
+      const tgtDate = halfDay;
       const occurrences = word.occurrences;
   
       let countRef = 0;

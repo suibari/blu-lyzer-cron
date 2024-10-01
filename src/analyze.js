@@ -13,7 +13,7 @@ export async function analyzeRecords(records) {
   let didLike = [];
   let recentFriends = [];
   const result = {};
-  const allRecords = [...records.posts, ...records.likes];
+  const allRecords = [...records.posts, ...records.likes, ...records.repost];
 
   // 活動ヒートマップ
   const histgram = new Array(24).fill(0);
