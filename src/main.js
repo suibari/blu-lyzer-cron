@@ -98,7 +98,7 @@ console.log('start batch process');
         console.warn(`[WARN] fetch error handle: ${handle}, so set empty object`);
         return { records: [] };
       });
-      records.repost = response.records || [];
+      records.repost = Array.isArray(response.records) ? response.records : []; // 配列かどうか確認し、配列でなければ空配列を代入
 
       // 解析
       const analyze = await analyzeRecords(records);
