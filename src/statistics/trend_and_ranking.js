@@ -7,8 +7,8 @@ import { supabase, getAllRows } from '../lib/supabase.js'
 
   // ---------------
   // Trends
-  const trendsToday = [];
-  const trendsIncRate = [];
+  const trendsTodayRaw = {};
+  const trendsIncRateRaw = {};
 
   // trends、rankingまとめて取得
   data = await getAllRows({tableName: 'records', selectCol: 'handle, result_analyze->wordFreqMap, result_analyze->averageInterval, result_analyze->lastActionTime, profile'});
@@ -29,54 +29,64 @@ import { supabase, getAllRows } from '../lib/supabase.js'
       const refDate = today;
       const tgtDate = yesterday;
       const occurrences = word.occurrences;
-
+  
       let countRef = 0;
       occurrences.forEach(occurrence => {
         const occurrenceTime = new Date(occurrence.timestamp);
         if (occurrenceTime >= refDate && occurrenceTime <= now) {
           countRef++;
-        };
+        }
       });
-
+      // countRef = countRef + word.sentimentScore;
+  
       let countTgt = 0;
       occurrences.forEach(occurrence => {
         const occurrenceTime = new Date(occurrence.timestamp);
         if (occurrenceTime >= tgtDate && occurrenceTime < refDate) {
           countTgt++;
-        };
+        }
       });
-
-      // 今日のトレンド
-      trendsToday.push({
-        noun: word.noun,
-        count: countRef,
-      });
-
-      // 昨日から今日にかけての増加率
-      const incRate = countRef / (countTgt || 0.5);
-      trendsIncRate.push({
-        noun: word.noun,
-        count: incRate,
-      });
+      // countTgt = countTgt + word.sentimentScore;
+  
+      // 今日のトレンド集計
+      if (trendsTodayRaw[word.noun]) {
+        trendsTodayRaw[word.noun] += countRef;
+      } else {
+        trendsTodayRaw[word.noun] = countRef;
+      }
+  
+      // 昨日から今日にかけての増加率集計
+      const incRate = countRef / (countTgt || 0.5);  // countTgtが0の場合は0.5で割る
+      if (trendsIncRateRaw[word.noun]) {
+        trendsIncRateRaw[word.noun] += incRate;
+      } else {
+        trendsIncRateRaw[word.noun] = incRate;
+      }
     });
   });
-  console.log(`trends: complete to analyze`);
+  
+  // trendsTodayとtrendsIncRateを配列に変換してソート
+  const trendsToday = Object.keys(trendsTodayRaw)
+    .map(noun => ({ noun, count: trendsTodayRaw[noun] }))
+    .sort((a, b) => b.count - a.count);
+  
+  const trendsIncRate = Object.keys(trendsIncRateRaw)
+    .map(noun => ({ noun, count: trendsIncRateRaw[noun] }))
+    .sort((a, b) => b.count - a.count);
 
-  // できたマージ結果をソート
-  trendsToday.sort((a, b) => b.count - a.count);
-  trendsIncRate.sort((a, b) => b.count - a.count);
+  console.log(`trends: complete to analyze`);
 
   // DB格納
   ({error} = await supabase
     .from('statistics')
-    .upsert({
-      id: 'trend',
+    .update({
       data: {
         trendsToday: trendsToday.slice(0, 100),
         trendsIncRate: trendsIncRate.slice(0, 100),
       },
       updated_at: new Date(),
     })
+    .eq('id', 'trend')
     .select());
   if (error) { 
     console.error(error);
@@ -113,14 +123,14 @@ import { supabase, getAllRows } from '../lib/supabase.js'
   // DB格納
   ({error} = await supabase
     .from('statistics')
-    .upsert({
-      id: 'ranking',
+    .update({
       data: {
         rankingAddict: rankingAddict.slice(0, 100),
         rankingInfluencer: rankingInfluencer.slice(0, 100),
       },
       updated_at: new Date(),
     })
+    .eq('id', 'ranking')
     .select());
   if (error) { 
     console.error(error);
