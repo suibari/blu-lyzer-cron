@@ -30,8 +30,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Kuromoji tokenizerのビルダー
-const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? "node_modules/kuromoji/dict" : // Local Env
-  resolve(__dirname, '../../../../../../../node_modules/kuromoji/dict') ; // Vercel Env : なぜかsubmodule以下のkuromoji dictを読めないのでこうする
+const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../node_modules/kuromoji/dict') : // Local Env
+  resolve(__dirname, '../../../../../../../src/lib/server/submodule/node_modules/kuromoji/dict') ; // Vercel Env
 const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
 
 // 感情辞書ファイルパス
