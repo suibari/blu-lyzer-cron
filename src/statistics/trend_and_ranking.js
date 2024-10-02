@@ -7,7 +7,8 @@ import { supabase, getAllRows } from '../lib/supabase.js'
 
   // ---------------
   // Trends
-  const trendsTodayRaw = {};
+  const trendsCurrentRaw = {};
+  const trendsPreviousRaw = {};
   const trendsIncRateRaw = {};
 
   // trends、rankingまとめて取得
@@ -26,8 +27,8 @@ import { supabase, getAllRows } from '../lib/supabase.js'
 
   data.forEach(row => {
     row.wordFreqMap.forEach(word => {
-      const refDate = quarterDay;
-      const tgtDate = halfDay;
+      const refDate = halfDay;
+      const tgtDate = today;
       const occurrences = word.occurrences;
   
       let countRef = 0;
@@ -48,26 +49,34 @@ import { supabase, getAllRows } from '../lib/supabase.js'
       });
       // countTgt = countTgt + word.sentimentScore;
   
-      // 今日のトレンド集計
-      if (trendsTodayRaw[word.noun]) {
-        trendsTodayRaw[word.noun] += countRef;
+      // 現在のトレンド集計
+      if (trendsCurrentRaw[word.noun]) {
+        trendsCurrentRaw[word.noun] += countRef;
       } else {
-        trendsTodayRaw[word.noun] = countRef;
+        trendsCurrentRaw[word.noun] = countRef;
       }
-  
-      // 昨日から今日にかけての増加率集計
-      const incRate = countRef / (countTgt || 0.5);  // countTgtが0の場合は0.5で割る
-      if (trendsIncRateRaw[word.noun]) {
-        trendsIncRateRaw[word.noun] += incRate;
+
+      // 過去のトレンド集計
+      if (trendsPreviousRaw[word.noun]) {
+        trendsPreviousRaw[word.noun] += countTgt;
       } else {
-        trendsIncRateRaw[word.noun] = incRate;
+        trendsPreviousRaw[word.noun] = countTgt;
       }
     });
   });
+
+  // 昨日から今日にかけての増加率集計
+  for (const word in trendsCurrentRaw) {
+    if (trendsPreviousRaw.hasOwnProperty(word) && trendsPreviousRaw[word] !== 0) {
+      trendsIncRateRaw[word] = trendsCurrentRaw[word] / trendsPreviousRaw[word];
+    } else {
+      trendsIncRateRaw[word] = trendsCurrentRaw[word] / 0.5 ;
+    }
+  }
   
   // trendsTodayとtrendsIncRateを配列に変換してソート
-  const trendsToday = Object.keys(trendsTodayRaw)
-    .map(noun => ({ noun, count: trendsTodayRaw[noun] }))
+  const trendsToday = Object.keys(trendsCurrentRaw)
+    .map(noun => ({ noun, count: trendsCurrentRaw[noun] }))
     .sort((a, b) => b.count - a.count);
   
   const trendsIncRate = Object.keys(trendsIncRateRaw)
@@ -104,9 +113,10 @@ import { supabase, getAllRows } from '../lib/supabase.js'
       handle: row.handle,
       name: row.profile.displayName || 'Unknown',
       img: row.profile.avatar || '/img/defaultavator.png',
-      averageInterval: row.averageInterval
+      wordFreqMap: row.wordFreqMap || null,
+      score: row.averageInterval
     }))
-    .sort((a, b) => a.averageInterval - b.averageInterval);
+    .sort((a, b) => a.score - b.score);
 
   const rankingInfluencer = data
     .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0)
@@ -114,31 +124,37 @@ import { supabase, getAllRows } from '../lib/supabase.js'
       const followersCount = row.profile.followersCount;
       const followsCount = row.profile.followsCount;
       // (followersCount / followsCount) * followersCount を計算
-      const metric = Math.round((followersCount / followsCount) * followersCount);
+      const score = Math.round((followersCount / followsCount) * followersCount);
       return {
         handle: row.handle,
         name: row.profile.displayName,
         img: row.profile.avatar || '/img/defaultavator.png',
-        metric: metric
+        wordFreqMap: row.wordFreqMap || null,
+        score: score
       };
     })
-    .sort((a, b) => b.metric - a.metric);  // 降順ソート
+    .sort((a, b) => b.score - a.score);  // 降順ソート
   
   // DB格納
-  ({error} = await supabase
-    .from('statistics')
-    .update({
-      data: {
-        rankingAddict: rankingAddict.slice(0, 100),
-        rankingInfluencer: rankingInfluencer.slice(0, 100),
-      },
-      updated_at: new Date(),
-    })
-    .eq('id', 'ranking')
-    .select());
-  if (error) { 
-    console.error(error);
-    throw error;
+  
+  try {
+    ({error} = await supabase
+      .from('statistics')
+      .update({
+        data: {
+          rankingAddict: rankingAddict.slice(0, 100),
+          rankingInfluencer: rankingInfluencer.slice(0, 100),
+        },
+        updated_at: new Date(),
+      })
+      .eq('id', 'ranking')
+      .select());
+    if (error) { 
+      console.error(error);
+      throw error;
+    }
+    console.log(`ranking: complete upsert`);
+  } catch (e) {
+    console.error(e);
   }
-  console.log(`ranking: complete upsert`);
 })();
