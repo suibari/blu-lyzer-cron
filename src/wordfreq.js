@@ -31,13 +31,13 @@ const __dirname = path.dirname(__filename);
 
 // Kuromoji tokenizerのビルダー
 const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? "node_modules/kuromoji/dict" : // Local Env
-  resolve(__dirname, '../../../../../../../src/lib/server/submodule/node_modules/kuromoji/dict') ; // Vercel Env
+  resolve(__dirname, '../../../../../../src/lib/server/submodule/node_modules/kuromoji/dict') ; // Vercel Env
 const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
 
 // 感情辞書ファイルパス
 const POLARITY_DICT_PATH = (PUBLIC_NODE_ENV === 'development') ? 'src/lib/server/submodule/dict/pn.csv.m3.120408.trim' : // Local Env
   (PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../dict/pn.csv.m3.120408.trim') : // Raspi Cron Server
-  resolve(__dirname, '../../../../../../../src/lib/server/submodule/dict/pn.csv.m3.120408.trim'); // Vercel Env
+  resolve(__dirname, '../../../../../../src/lib/server/submodule/dict/pn.csv.m3.120408.trim'); // Vercel Env
 const polarityMap = await loadPolarityDictionary(); // 感情辞書をロード
 
 /**
