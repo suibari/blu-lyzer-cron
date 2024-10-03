@@ -22,7 +22,7 @@ const EXCLUDE_WORDS = [
   "http", "www", "html", "php", "net", "org", "ftp", "co", "io", "jp", "www", "mailto", // インターネット
   "bsky", "social", // Bluesky
   "to", "the", "of", "you", "be", "in", "is", "it", "for", "that", "on", // 英語
-  "ちんぽ", // R-18
+  "ちんぽ", "ちんちん", // R-18
   "なん", "あと", "うち", // 運用してみていらないもの
 ];
 
