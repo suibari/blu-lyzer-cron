@@ -1,6 +1,9 @@
 import dotenv from 'dotenv';
 dotenv.config();
 import { supabase, getAllRows } from '../lib/supabase.js'
+import { calculateEMA } from './average.js';
+
+const EMA_RANGE = 12; // 指数移動平均のレンジ
 
 (async() => {
   let data, error;
@@ -8,11 +11,11 @@ import { supabase, getAllRows } from '../lib/supabase.js'
   // ---------------
   // Trends
   const trendsCurrentRaw = {};
-  const trendsPreviousRaw = {};
   const trendsIncRateRaw = {};
+  const trendsEmaRaw = {};
 
   // trends、rankingまとめて取得
-  data = await getAllRows({tableName: 'records', selectCol: 'handle, result_analyze->wordFreqMap, result_analyze->averageInterval, result_analyze->lastActionTime, profile'});
+  data = await getAllRows({tableName: 'records', selectCol: 'handle, result_analyze->wordFreqMap, result_analyze->averageInterval, result->analyze->averagePostsInterval, result_analyze->lastActionTime, profile'});
 
   console.log(`trends and ranking: got wordFreqMap: ${data.length}`);
 
@@ -24,65 +27,74 @@ import { supabase, getAllRows } from '../lib/supabase.js'
   const halfDay = new Date(now.getTime() - 12 * 60 * 60 * 1000); // 12時間前
   const today = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24時間前
   const yesterday = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48時間前
+  const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 1週間前
 
   data.forEach(row => {
     row.wordFreqMap.forEach(word => {
-      const refDate = halfDay;
-      const tgtDate = today;
       const occurrences = word.occurrences;
   
-      let countRef = 0;
+      // 24時間分の1時間ごとの頻出数を保持する配列
+      let hourlyCounts = Array(24).fill(0);
+      let count24h = 0;  // 24時間内の単語の頻出回数
+      let count48h_24h = 0; // 48~24時間内の単語の頻出回数
+    
+      // 各出現時間を1時間ごとに集計
       occurrences.forEach(occurrence => {
         const occurrenceTime = new Date(occurrence.timestamp);
-        if (occurrenceTime >= refDate && occurrenceTime <= now) {
-          countRef++;
+        const hoursAgo = Math.floor((now - occurrenceTime) / (1000 * 60 * 60));
+        
+        if (hoursAgo >= 0 && hoursAgo < 24) {
+          hourlyCounts[hoursAgo]++;
+          count24h++; // 24時間内の出現回数
+        } else if (hoursAgo >= 24 && hoursAgo < 48) {
+          count48h_24h++; // 48~24時間内の出現回数
         }
       });
-      // countRef = countRef + word.sentimentScore;
   
-      let countTgt = 0;
-      occurrences.forEach(occurrence => {
-        const occurrenceTime = new Date(occurrence.timestamp);
-        if (occurrenceTime >= tgtDate && occurrenceTime < refDate) {
-          countTgt++;
-        }
-      });
-      // countTgt = countTgt + word.sentimentScore;
+      // 指数移動平均を計算（最新のデータに大きな係数）
+      const ema = calculateEMA(hourlyCounts, EMA_RANGE);
   
-      // 現在のトレンド集計
-      if (trendsCurrentRaw[word.noun]) {
-        trendsCurrentRaw[word.noun] += countRef;
+      // 24時間の単語出現数合計を格納
+      if (!trendsCurrentRaw[word.noun]) {
+        trendsCurrentRaw[word.noun] = 0;
+      }
+      trendsCurrentRaw[word.noun] = count24h;
+
+      // 48~24時間と24時間の出現数を基に増加率を計算
+      if (!trendsIncRateRaw[word.noun]) {
+        trendsIncRateRaw[word.noun] = 0;
+      }
+      if (count48h_24h > 0) {
+        trendsIncRateRaw[word.noun] = count24h / count48h_24h; // 48~24時間内の単語に対する増加率
       } else {
-        trendsCurrentRaw[word.noun] = countRef;
+        trendsIncRateRaw[word.noun] = count24h > 0 ? count24h / 0.5 : 0; // 安全な値のために0.5で割る
       }
 
-      // 過去のトレンド集計
-      if (trendsPreviousRaw[word.noun]) {
-        trendsPreviousRaw[word.noun] += countTgt;
-      } else {
-        trendsPreviousRaw[word.noun] = countTgt;
+      // trendsEma にEMAを格納
+      if (!trendsEmaRaw[word.noun]) {
+        trendsEmaRaw[word.noun] = [];
       }
+      trendsEmaRaw[word.noun] = ema;
+
+
     });
   });
-
-  // 昨日から今日にかけての増加率集計
-  for (const word in trendsCurrentRaw) {
-    if (trendsPreviousRaw.hasOwnProperty(word) && trendsPreviousRaw[word] !== 0) {
-      trendsIncRateRaw[word] = trendsCurrentRaw[word] / trendsPreviousRaw[word];
-    } else {
-      trendsIncRateRaw[word] = trendsCurrentRaw[word] / 0.5 ;
-    }
-  }
   
-  // trendsTodayとtrendsIncRateを配列に変換してソート
+  // trendsTodayを出力して直近1時間のEMAでソート
   const trendsToday = Object.keys(trendsCurrentRaw)
     .map(noun => ({ noun, count: trendsCurrentRaw[noun] }))
     .sort((a, b) => b.count - a.count);
-  
+
+  // trendsTodayを出力して直近1時間のEMAでソート
   const trendsIncRate = Object.keys(trendsIncRateRaw)
     .map(noun => ({ noun, count: trendsIncRateRaw[noun] }))
     .sort((a, b) => b.count - a.count);
 
+  // trendsTodayを出力して直近1時間のEMAでソート
+  const trendsEma = Object.keys(trendsEmaRaw)
+    .map(noun => ({ noun, count: trendsEmaRaw[noun] }))
+    .sort((a, b) => b.count[0] - a.count[0]);
+  
   console.log(`trends: complete to analyze`);
 
   // DB格納
@@ -92,6 +104,7 @@ import { supabase, getAllRows } from '../lib/supabase.js'
       data: {
         trendsToday: trendsToday.slice(0, 100),
         trendsIncRate: trendsIncRate.slice(0, 100),
+        trendsEma: trendsEma.slice(0, 100),
       },
       updated_at: new Date(),
     })
@@ -106,34 +119,58 @@ import { supabase, getAllRows } from '../lib/supabase.js'
   // ---------------
   // Ranking
   
-  // デストラクチャリングで `averageInterval` を直接取得
+  // ぶる廃ランキング
   const rankingAddict = data
     .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
     .map(row => ({
       handle: row.handle,
-      name: row.profile.displayName || 'Unknown',
-      img: row.profile.avatar || '/img/defaultavator.png',
-      wordFreqMap: row.wordFreqMap || null,
+      name: row.profile?.displayName || 'Unknown',
+      img: row.profile?.avatar || '/img/defaultavator.png',
+      wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
       score: row.averageInterval
     }))
     .sort((a, b) => a.score - b.score);
 
+  // 単純インフルエンサーランキング
   const rankingInfluencer = data
     .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0)
     .map(row => {
       const followersCount = row.profile.followersCount;
       const followsCount = row.profile.followsCount;
+      
       // (followersCount / followsCount) * followersCount を計算
-      const score = Math.round((followersCount / followsCount) * followersCount);
+      const pointRaw = Math.round((followersCount / followsCount) * followersCount);
+
       return {
         handle: row.handle,
-        name: row.profile.displayName,
-        img: row.profile.avatar || '/img/defaultavator.png',
-        wordFreqMap: row.wordFreqMap || null,
-        score: score
+        name: row.profile?.displayName || 'Unknown',
+        img: row.profile?.avatar || '/img/defaultavator.png',
+        wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
+        score: pointRaw
       };
     })
     .sort((a, b) => b.score - a.score);  // 降順ソート
+
+  // アクティブインフルエンサーランキング
+  const rankingActiveInfluencer = data
+  .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0 && new Date(row.lastActionTime) > thisWeek)
+  .map(row => {
+    const followersCount = row.profile.followersCount;
+    const followsCount = row.profile.followsCount;
+    
+    // (followersCount / followsCount) * followersCount を計算
+    const pointRaw = Math.round((followersCount / followsCount) * followersCount);
+    const point = pointRaw * 1 / (row.averagePostsInterval > 0 ? row.averagePostsInterval : 1);
+
+    return {
+      handle: row.handle,
+      name: row.profile?.displayName || 'Unknown',
+      img: row.profile?.avatar || '/img/defaultavator.png',
+      wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
+      score: point
+    };
+  })
+  .sort((a, b) => b.score - a.score);  // 降順ソート
   
   // DB格納
   
@@ -144,6 +181,7 @@ import { supabase, getAllRows } from '../lib/supabase.js'
         data: {
           rankingAddict: rankingAddict.slice(0, 100),
           rankingInfluencer: rankingInfluencer.slice(0, 100),
+          rankingActiveInfluencer: rankingActiveInfluencer.slice(0, 100),
         },
         updated_at: new Date(),
       })

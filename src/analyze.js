@@ -36,19 +36,10 @@ export async function analyzeRecords(records) {
   result.activeHistgram = histgram;
 
   // 平均活動間隔
-  allRecords.sort((a, b) => new Date(a.value.createdAt) - new Date(b.value.createdAt));
-  let totalInterval = 0;
-  let intervalsCount = 0;
-  for (let i = 1; i < allRecords.length; i++) {
-    const currentTime = new Date(allRecords[i].value.createdAt).getTime();
-    const previousTime = new Date(allRecords[i - 1].value.createdAt).getTime();
-    const interval = currentTime - previousTime;
+  result.averageInterval = calculateAverageInterval(allRecords);
 
-    totalInterval += interval;
-    intervalsCount++;
-  }
-  const averageIntervalInSeconds = intervalsCount > 0 ? totalInterval / intervalsCount / 1000 : 0;
-  result.averageInterval = averageIntervalInSeconds;
+  // 平均ポスト間隔
+  result.averagePostsInterval = calculateAverageInterval(records.posts);
 
   // 最終活動時間
   const lastActionTime = allRecords.length > 0 ? new Date(allRecords[allRecords.length - 1].value.createdAt) : null;
@@ -133,4 +124,21 @@ export async function analyzeRecords(records) {
   result.recentFriends = recentFriends;
 
   return result;
+}
+
+// レコードの平均間隔
+function calculateAverageInterval(records) {
+  records.sort((a, b) => new Date(a.value.createdAt) - new Date(b.value.createdAt));
+  let totalInterval = 0;
+  let intervalsCount = 0;
+  for (let i = 1; i < records.length; i++) {
+    const currentTime = new Date(records[i].value.createdAt).getTime();
+    const previousTime = new Date(records[i - 1].value.createdAt).getTime();
+    const interval = currentTime - previousTime;
+
+    totalInterval += interval;
+    intervalsCount++;
+  }
+  const averageIntervalInSeconds = intervalsCount > 0 ? totalInterval / intervalsCount / 1000 : 0;
+  return averageIntervalInSeconds;
 }

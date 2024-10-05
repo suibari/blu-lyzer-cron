@@ -1,0 +1,13 @@
+dict/unk.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/unk_char.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/unk_invoke.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/base.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/cc.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/tid.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/tid_map.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/tid_pos.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/unk_map.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/check.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/unk_compat.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/unk_pos.dat.gz filter=lfs diff=lfs merge=lfs -text
+dict/pn.csv.m3.120408.trim filter=lfs diff=lfs merge=lfs -text
