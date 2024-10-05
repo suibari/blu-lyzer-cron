@@ -30,8 +30,8 @@ const EXCLUDE_WORDS = [
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Kuromoji tokenizerのビルダー
-const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../dict') : // Local Env (NeoLogd Dic)
+// Kuromoji tokenizerのビルダー: 辞書はサイズ制限でneologdをVercelに上げられないので、Vercel上ではIPAdic、ローカルではneologdを使う
+const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../dict/dict_neologd_full') : // Local Env
 // const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../node_modules/kuromoji/dict') : // Local Env (IPA Dic)
   resolve(__dirname, '../../../../../../../src/lib/submodule/dict') ; // Vercel Env
 const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
