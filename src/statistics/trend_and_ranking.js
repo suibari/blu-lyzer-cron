@@ -1,9 +1,22 @@
 import dotenv from 'dotenv';
 dotenv.config();
+import { Blueskyer } from 'blueskyer'
+const agent = new Blueskyer();
 import { supabase, getAllRows } from '../lib/supabase.js'
 import { calculateEMA } from './average.js';
 
 const EMA_RANGE = 12; // 指数移動平均のレンジ
+const DEFAULT_PROFILE = (handle) => {
+  return {
+    handle: handle,
+    displayName: "",
+    description: "",
+    avatar: '/img/defaultavator.png',
+    banner: '/img/defaultavator.png',
+    followersCount: 'unknown',
+    followersCount: 'unknown',
+  }
+}
 
 (async() => {
   let data, error;
@@ -118,70 +131,93 @@ const EMA_RANGE = 12; // 指数移動平均のレンジ
 
   // ---------------
   // Ranking
-  
+  // Blueskyログインとメディア収集
+  await agent.login({
+    identifier: process.env.BSKY_IDENTIFIER,
+    password: process.env.BSKY_APP_PASSWORD,
+  });
+  console.log(`successful to log in Bluesky`);
+
   // ぶる廃ランキング
-  const rankingAddict = data
-    .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
-    .map(row => ({
-      handle: row.handle,
-      name: row.profile?.displayName || 'Unknown',
-      img: row.profile?.avatar || '/img/defaultavator.png',
-      wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
-      score: row.averageInterval
-    }))
-    .sort((a, b) => a.score - b.score);
-
-  // 単純インフルエンサーランキング
-  const rankingInfluencer = data
-    .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0)
-    .map(row => {
-      const followersCount = row.profile.followersCount;
-      const followsCount = row.profile.followsCount;
-      
-      // (followersCount / followsCount) * followersCount を計算
-      const pointRaw = Math.round((followersCount / followsCount) * followersCount);
-
-      return {
+  const rankingAddict = await Promise.all(
+    data
+      .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
+      .slice(0, 100)
+      .map(async row => ({
         handle: row.handle,
         name: row.profile?.displayName || 'Unknown',
         img: row.profile?.avatar || '/img/defaultavator.png',
+        profile: row.profile || null,
+        medias: await getMedias(row) || [],
         wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
-        score: pointRaw
-      };
-    })
-    .sort((a, b) => b.score - a.score);  // 降順ソート
+        averageInterval: row.averageInterval,
+        score: row.averageInterval
+      }))
+  );
+  rankingAddict.sort((a, b) => a.score - b.score);
+
+  // 単純インフルエンサーランキング
+  const rankingInfluencer = await Promise.all(
+    data
+      .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0)
+      .slice(0, 100)
+      .map(async row => {
+        const followersCount = row.profile.followersCount;
+        const followsCount = row.profile.followsCount;
+        
+        // (followersCount / followsCount) * followersCount を計算
+        const pointRaw = Math.round((followersCount / followsCount) * followersCount);
+
+        return {
+          handle: row.handle,
+          name: row.profile?.displayName || 'Unknown',
+          img: row.profile?.avatar || '/img/defaultavator.png',
+          profile: row.profile || null,
+          medias: await getMedias(row) || [],
+          wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
+          averageInterval: row.averageInterval,
+          score: pointRaw
+        };
+      })
+  );
+  rankingInfluencer.sort((a, b) => b.score - a.score);  // 降順ソート
 
   // アクティブインフルエンサーランキング
-  const rankingActiveInfluencer = data
-  .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0 && new Date(row.lastActionTime) > thisWeek)
-  .map(row => {
-    const followersCount = row.profile.followersCount;
-    const followsCount = row.profile.followsCount;
-    
-    // (followersCount / followsCount) * followersCount を計算
-    const pointRaw = (followersCount / followsCount) * followersCount;
-    const point = pointRaw * 1 / (row.averagePostsInterval > 0 ? row.averagePostsInterval : 1);
+  const rankingActiveInfluencer = await Promise.all(
+    data
+      .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0 && new Date(row.lastActionTime) > thisWeek)
+      .slice(0, 100)
+      .map(async row => {
+        const followersCount = row.profile.followersCount;
+        const followsCount = row.profile.followsCount;
+        
+        // (followersCount / followsCount) * followersCount を計算
+        const pointRaw = (followersCount / followsCount) * followersCount;
+        const point = pointRaw * 1 / (row.averagePostsInterval > 0 ? row.averagePostsInterval : 1);
 
-    return {
-      handle: row.handle,
-      name: row.profile?.displayName || 'Unknown',
-      img: row.profile?.avatar || '/img/defaultavator.png',
-      wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
-      score: point
-    };
-  })
-  .sort((a, b) => b.score - a.score);  // 降順ソート
+        return {
+          handle: row.handle,
+          name: row.profile?.displayName || 'Unknown',
+          img: row.profile?.avatar || '/img/defaultavator.png',
+          profile: row.profile || null,
+          medias: await getMedias(row) || [],
+          wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
+          averageInterval: row.averageInterval,
+          score: point
+        };
+      })
+  );
+  rankingActiveInfluencer.sort((a, b) => b.score - a.score);  // 降順ソート
   
   // DB格納
-  
   try {
     ({error} = await supabase
       .from('statistics')
       .update({
         data: {
-          rankingAddict: rankingAddict.slice(0, 100),
-          rankingInfluencer: rankingInfluencer.slice(0, 100),
-          rankingActiveInfluencer: rankingActiveInfluencer.slice(0, 100),
+          rankingAddict: rankingAddict,
+          rankingInfluencer: rankingInfluencer,
+          rankingActiveInfluencer: rankingActiveInfluencer,
         },
         updated_at: new Date(),
       })
@@ -196,3 +232,24 @@ const EMA_RANGE = 12; // 指数移動平均のレンジ
     console.error(e);
   }
 })();
+
+async function getMedias(row) {
+  const medias = [];
+
+  const {data} = await agent.getAuthorFeed({actor: row.handle, limit: 100, filter: 'posts_with_media'}).catch(e => {
+    console.error(e);
+    console.warn(`[WARN] fetch error handle: ${row.handle}, so set empty object`);
+    return { data: {feed: []} };
+  });
+  // console.log(data);
+  data.feed.forEach(feed => {
+    const images = feed.post.embed.images;
+    if (images) {
+      images.forEach(image => {
+        medias.push(image);
+      })
+    }
+  })
+
+  return medias;
+}
