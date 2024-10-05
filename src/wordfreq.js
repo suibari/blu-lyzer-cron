@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import dotenv from 'dotenv';
 import fs from 'fs';
 import kuromoji from 'kuromoji';
 import path, { resolve } from 'path';
