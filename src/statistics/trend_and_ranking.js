@@ -15,7 +15,7 @@ const EMA_RANGE = 12; // 指数移動平均のレンジ
   const trendsEmaRaw = {};
 
   // trends、rankingまとめて取得
-  data = await getAllRows({tableName: 'records', selectCol: 'handle, result_analyze->wordFreqMap, result_analyze->averageInterval, result->analyze->averagePostsInterval, result_analyze->lastActionTime, profile'});
+  data = await getAllRows({tableName: 'records', selectCol: 'handle, result_analyze->wordFreqMap, result_analyze->averageInterval, result_analyze->averagePostsInterval, result_analyze->lastActionTime, profile'});
 
   console.log(`trends and ranking: got wordFreqMap: ${data.length}`);
 
@@ -159,7 +159,7 @@ const EMA_RANGE = 12; // 指数移動平均のレンジ
     const followsCount = row.profile.followsCount;
     
     // (followersCount / followsCount) * followersCount を計算
-    const pointRaw = Math.round((followersCount / followsCount) * followersCount);
+    const pointRaw = (followersCount / followsCount) * followersCount;
     const point = pointRaw * 1 / (row.averagePostsInterval > 0 ? row.averagePostsInterval : 1);
 
     return {
