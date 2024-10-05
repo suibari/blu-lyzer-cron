@@ -139,76 +139,76 @@ const DEFAULT_PROFILE = (handle) => {
   console.log(`successful to log in Bluesky`);
 
   // ぶる廃ランキング
-  const rankingAddict = await Promise.all(
-    data
-      .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
-      .slice(0, 100)
-      .map(async row => ({
+  let rankingAddict = data
+    .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
+    .map(row => ({
+      handle: row.handle,
+      name: row.profile?.displayName || 'Unknown',
+      img: row.profile?.avatar || '/img/defaultavator.png',
+      profile: row.profile || null,
+      wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
+      averageInterval: row.averageInterval,
+      score: row.averageInterval
+    }))
+  rankingAddict = rankingAddict.sort((a, b) => a.score - b.score).slice(0, 100);
+  for (const rank of rankingAddict) {
+    rank.medias = await getMedias(rank.handle);
+  }
+  console.log(`ranking: complete process addict`);
+
+  // 単純インフルエンサーランキング
+  let rankingInfluencer = data
+    .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0)
+    .map(row => {
+      const followersCount = row.profile.followersCount;
+      const followsCount = row.profile.followsCount;
+      
+      // (followersCount / followsCount) * followersCount を計算
+      const pointRaw = Math.round((followersCount / followsCount) * followersCount);
+
+      return {
         handle: row.handle,
         name: row.profile?.displayName || 'Unknown',
         img: row.profile?.avatar || '/img/defaultavator.png',
         profile: row.profile || null,
-        medias: await getMedias(row) || [],
         wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
         averageInterval: row.averageInterval,
-        score: row.averageInterval
-      }))
-  );
-  rankingAddict.sort((a, b) => a.score - b.score);
-
-  // 単純インフルエンサーランキング
-  const rankingInfluencer = await Promise.all(
-    data
-      .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0)
-      .slice(0, 100)
-      .map(async row => {
-        const followersCount = row.profile.followersCount;
-        const followsCount = row.profile.followsCount;
-        
-        // (followersCount / followsCount) * followersCount を計算
-        const pointRaw = Math.round((followersCount / followsCount) * followersCount);
-
-        return {
-          handle: row.handle,
-          name: row.profile?.displayName || 'Unknown',
-          img: row.profile?.avatar || '/img/defaultavator.png',
-          profile: row.profile || null,
-          medias: await getMedias(row) || [],
-          wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
-          averageInterval: row.averageInterval,
-          score: pointRaw
-        };
-      })
-  );
-  rankingInfluencer.sort((a, b) => b.score - a.score);  // 降順ソート
+        score: pointRaw
+      };
+    })
+  rankingInfluencer = rankingInfluencer.sort((a, b) => b.score - a.score).slice(0, 100);  // 降順ソート
+  for (const rank of rankingInfluencer) {
+    rank.medias = await getMedias(rank.handle);
+  }
+  console.log(`ranking: complete process influencer`);
 
   // アクティブインフルエンサーランキング
-  const rankingActiveInfluencer = await Promise.all(
-    data
-      .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0 && new Date(row.lastActionTime) > thisWeek)
-      .slice(0, 100)
-      .map(async row => {
-        const followersCount = row.profile.followersCount;
-        const followsCount = row.profile.followsCount;
-        
-        // (followersCount / followsCount) * followersCount を計算
-        const pointRaw = (followersCount / followsCount) * followersCount;
-        const point = pointRaw * 1 / (row.averagePostsInterval > 0 ? row.averagePostsInterval : 1);
+  let rankingActiveInfluencer = data
+    .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0 && new Date(row.lastActionTime) > thisWeek)
+    .map(row => {
+      const followersCount = row.profile.followersCount;
+      const followsCount = row.profile.followsCount;
+      
+      // (followersCount / followsCount) * followersCount を計算
+      const pointRaw = (followersCount / followsCount) * followersCount;
+      const point = pointRaw * 1 / (row.averagePostsInterval > 0 ? row.averagePostsInterval : 1);
 
-        return {
-          handle: row.handle,
-          name: row.profile?.displayName || 'Unknown',
-          img: row.profile?.avatar || '/img/defaultavator.png',
-          profile: row.profile || null,
-          medias: await getMedias(row) || [],
-          wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
-          averageInterval: row.averageInterval,
-          score: point
-        };
-      })
-  );
-  rankingActiveInfluencer.sort((a, b) => b.score - a.score);  // 降順ソート
-  
+      return {
+        handle: row.handle,
+        name: row.profile?.displayName || 'Unknown',
+        img: row.profile?.avatar || '/img/defaultavator.png',
+        profile: row.profile || null,
+        wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
+        averageInterval: row.averageInterval,
+        score: point
+      };
+    })
+  rankingActiveInfluencer = rankingActiveInfluencer.sort((a, b) => b.score - a.score).slice(0, 100);  // 降順ソート
+  for (const rank of rankingActiveInfluencer) {
+    rank.medias = await getMedias(rank.handle);
+  }
+  console.log(`ranking: complete process active influencer`);
+
   // DB格納
   try {
     ({error} = await supabase
@@ -233,12 +233,12 @@ const DEFAULT_PROFILE = (handle) => {
   }
 })();
 
-async function getMedias(row) {
+async function getMedias(handle) {
   const medias = [];
 
-  const {data} = await agent.getAuthorFeed({actor: row.handle, limit: 100, filter: 'posts_with_media'}).catch(e => {
+  const {data} = await agent.getAuthorFeed({actor: handle, limit: 100, filter: 'posts_with_media'}).catch(e => {
     console.error(e);
-    console.warn(`[WARN] fetch error handle: ${row.handle}, so set empty object`);
+    console.warn(`[WARN] fetch error handle: ${handle}, so set empty object`);
     return { data: {feed: []} };
   });
   // console.log(data);
