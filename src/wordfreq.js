@@ -1,10 +1,12 @@
 import dotenv from 'dotenv';
+import dotenv from 'dotenv';
 import fs from 'fs';
 import kuromoji from 'kuromoji';
 import path, { resolve } from 'path';
 import { fileURLToPath } from 'url';
 dotenv.config();
 const PUBLIC_NODE_ENV = process.env.PUBLIC_NODE_ENV;
+dotenv.config();
 
 const EXCLUDE_WORDS = [
   "こと", "これ", "それ", "そう", "どこ", 
