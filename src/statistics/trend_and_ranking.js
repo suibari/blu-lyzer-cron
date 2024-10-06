@@ -251,8 +251,10 @@ async function getLatestMedia(handle) {
   // console.log(data);
   data.feed.forEach(feed => {
     const images = feed.post.embed.images;
+    const labels = feed.post.labels;
     if (images) {
       images.forEach(image => {
+        image.labels = labels;
         medias.push(image);
       })
     }
