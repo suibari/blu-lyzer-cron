@@ -132,6 +132,13 @@ const DEFAULT_PROFILE = (handle) => {
   // ---------------
   // Ranking
   // ぶる廃ランキング
+  // blueskyログイン
+  await agent.login({
+    identifier: process.env.BSKY_IDENTIFIER,
+    password: process.env.BSKY_APP_PASSWORD,
+  });
+  console.log(`successful to log in Bluesky`);
+
   let rankingAddict = data
     .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
     .map(row => ({
@@ -142,8 +149,11 @@ const DEFAULT_PROFILE = (handle) => {
       wordFreqMap: row.wordFreqMap.slice(0, 3) || null,
       averageInterval: row.averageInterval,
       score: row.averageInterval
-    }))
+    }));
   rankingAddict = rankingAddict.sort((a, b) => a.score - b.score).slice(0, 100);
+  for (const rank of rankingAddict) {
+    rank.media = await getLatestMedia(rank.handle);
+  }
   console.log(`ranking: complete process addict`);
 
   // 単純インフルエンサーランキング
@@ -165,8 +175,11 @@ const DEFAULT_PROFILE = (handle) => {
         averageInterval: row.averageInterval,
         score: pointRaw
       };
-    })
+    });
   rankingInfluencer = rankingInfluencer.sort((a, b) => b.score - a.score).slice(0, 100);  // 降順ソート
+  for (const rank of rankingInfluencer) {
+    rank.media = await getLatestMedia(rank.handle);
+  }
   console.log(`ranking: complete process influencer`);
 
   // アクティブインフルエンサーランキング
@@ -191,6 +204,9 @@ const DEFAULT_PROFILE = (handle) => {
       };
     })
   rankingActiveInfluencer = rankingActiveInfluencer.sort((a, b) => b.score - a.score).slice(0, 100);  // 降順ソート
+  for (const rank of rankingActiveInfluencer) {
+    rank.media = await getLatestMedia(rank.handle);
+  }
   console.log(`ranking: complete process active influencer`);
 
   // ---------------
@@ -218,3 +234,33 @@ const DEFAULT_PROFILE = (handle) => {
     console.error(e);
   }
 })();
+
+async function getLatestMedia(handle) {
+  const medias = [];
+
+  // await agent.createOrRefleshSession({
+  //   identifier: process.env.BSKY_IDENTIFIER,
+  //   password: process.env.BSKY_APP_PASSWORD,
+  // });
+
+  const {data} = await agent.getAuthorFeed({actor: handle, limit: 100, filter: 'posts_with_media'}).catch(e => {
+    console.error(e);
+    console.warn(`[WARN] fetch error handle: ${handle}, so set empty object`);
+    return { data: {feed: []} };
+  });
+  // console.log(data);
+  data.feed.forEach(feed => {
+    const images = feed.post.embed.images;
+    if (images) {
+      images.forEach(image => {
+        medias.push(image);
+      })
+    }
+  })
+
+  if (medias.length > 0){
+    return medias[0];
+  } else {
+    return medias;
+  }
+}
