@@ -131,13 +131,6 @@ const DEFAULT_PROFILE = (handle) => {
 
   // ---------------
   // Ranking
-  // Blueskyログインとメディア収集
-  await agent.login({
-    identifier: process.env.BSKY_IDENTIFIER,
-    password: process.env.BSKY_APP_PASSWORD,
-  });
-  console.log(`successful to log in Bluesky`);
-
   // ぶる廃ランキング
   let rankingAddict = data
     .filter(row => row.averageInterval && row.averageInterval !== 0 && new Date(row.lastActionTime) > today)
@@ -151,9 +144,6 @@ const DEFAULT_PROFILE = (handle) => {
       score: row.averageInterval
     }))
   rankingAddict = rankingAddict.sort((a, b) => a.score - b.score).slice(0, 100);
-  for (const rank of rankingAddict) {
-    rank.medias = await getMedias(rank.handle);
-  }
   console.log(`ranking: complete process addict`);
 
   // 単純インフルエンサーランキング
@@ -177,9 +167,6 @@ const DEFAULT_PROFILE = (handle) => {
       };
     })
   rankingInfluencer = rankingInfluencer.sort((a, b) => b.score - a.score).slice(0, 100);  // 降順ソート
-  for (const rank of rankingInfluencer) {
-    rank.medias = await getMedias(rank.handle);
-  }
   console.log(`ranking: complete process influencer`);
 
   // アクティブインフルエンサーランキング
@@ -204,12 +191,11 @@ const DEFAULT_PROFILE = (handle) => {
       };
     })
   rankingActiveInfluencer = rankingActiveInfluencer.sort((a, b) => b.score - a.score).slice(0, 100);  // 降順ソート
-  for (const rank of rankingActiveInfluencer) {
-    rank.medias = await getMedias(rank.handle);
-  }
   console.log(`ranking: complete process active influencer`);
 
+  // ---------------
   // DB格納
+  // トレンドランキング
   try {
     ({error} = await supabase
       .from('statistics')
@@ -232,24 +218,3 @@ const DEFAULT_PROFILE = (handle) => {
     console.error(e);
   }
 })();
-
-async function getMedias(handle) {
-  const medias = [];
-
-  const {data} = await agent.getAuthorFeed({actor: handle, limit: 100, filter: 'posts_with_media'}).catch(e => {
-    console.error(e);
-    console.warn(`[WARN] fetch error handle: ${handle}, so set empty object`);
-    return { data: {feed: []} };
-  });
-  // console.log(data);
-  data.feed.forEach(feed => {
-    const images = feed.post.embed.images;
-    if (images) {
-      images.forEach(image => {
-        medias.push(image);
-      })
-    }
-  })
-
-  return medias;
-}
