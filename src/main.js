@@ -7,7 +7,7 @@ const agent = new Blueskyer();
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 const SUPABASE_PAGE_SIZE = 1000;
-const BULK_RANDOM_SIZE = 3000;
+const BULK_RANDOM_SIZE = 5000;
 const CHUNK_SIZE = 100; // 500だとsupabaseのtimeoutが発生する
 
 console.log('start batch process');

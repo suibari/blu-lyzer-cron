@@ -184,14 +184,20 @@ const DEFAULT_PROFILE = (handle) => {
 
   // アクティブインフルエンサーランキング
   let rankingActiveInfluencer = data
-    .filter(row => row.profile && row.profile.followersCount > 0 && row.profile.followsCount > 0 && new Date(row.lastActionTime) > thisWeek)
+    .filter(
+      row => row.profile &&
+      row.profile.followersCount > 0 &&
+      row.profile.followsCount > 0 &&
+      new Date(row.lastActionTime) > thisWeek &&
+      row.averagePostsInterval > 0
+    )
     .map(row => {
       const followersCount = row.profile.followersCount;
       const followsCount = row.profile.followsCount;
       
       // (followersCount / followsCount) * followersCount を計算
       const pointRaw = (followersCount / followsCount) * followersCount;
-      const point = pointRaw * 1 / (row.averagePostsInterval > 0 ? row.averagePostsInterval : 1);
+      const point = pointRaw / row.averagePostsInterval;
 
       return {
         handle: row.handle,

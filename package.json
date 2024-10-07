@@ -4,6 +4,7 @@
     "@supabase/supabase-js": "^2.45.4",
     "blueskyer": "^1.2.6",
     "dotenv": "^16.4.5",
-    "kuromoji": "^0.1.2"
+    "kuromoji": "^0.1.2",
+    "ws": "^8.18.0"
   }
 }

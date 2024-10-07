@@ -30,9 +30,11 @@ const EXCLUDE_WORDS = [
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Kuromoji tokenizerのビルダー: 辞書はサイズ制限でneologdをVercelに上げられないので、Vercel上ではIPAdic、ローカルではneologdを使う
-const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../dict/dict_neologd_full') : // Local Env
-// const dicPath = (PUBLIC_NODE_ENV === 'development' || PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../node_modules/kuromoji/dict') : // Local Env (IPA Dic)
+// Kuromoji tokenizerのビルダー:
+// 辞書はサイズ制限でneologdをVercelに上げられないので、Vercel上ではIPAdic、ローカルではneologdを使う
+// Raspiバッチ処理について、neologdは時間がかかりすぎる(200rec/h)ので、当面IPAを使用
+const dicPath = (PUBLIC_NODE_ENV === 'development') ? resolve(__dirname, '../dict/dict_neologd_full') : // Local Env
+  (PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../dict') : // Raspi Cron Server
   resolve(__dirname, '../../../../../../../src/lib/submodule/dict') ; // Vercel Env
 const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
 
@@ -135,6 +137,55 @@ export async function getNounFrequencies(posts) {
         }));
 
       resolve({ wordFreqMap, sentimentHeatmap });
+    });
+  });
+}
+
+/**
+ * シングルポスト版 
+ */
+export async function getNouns(text) {
+  return new Promise((resolve, reject) => {
+    // タイムアウトを5秒に設定
+    const timeout = setTimeout(() => {
+      reject(new Error('Tokenizer build timeout'));
+    }, 5000);
+
+    tokenizerBuilder.build((err, tokenizer) => {
+      clearTimeout(timeout); // タイムアウトをクリア
+
+      if (err) {
+        return reject(err);
+      }
+
+      // textがnull, undefined, 空文字でないことを確認
+      if (typeof text !== 'string' || text.trim() === '') {
+        return resolve([]); // 空の場合は処理をスキップし、空配列を返す
+      }
+
+      // ヌル文字を空文字に置換
+      text = text.replace(/\0/g, '');
+
+      try {
+        const tokens = tokenizer.tokenize(text);
+        const nouns = tokens.filter(token => 
+          token.pos === '名詞' &&
+          !/^[\d]+$/.test(token.surface_form) && // 数値の除外
+          !/^[^\p{L}]+$/u.test(token.surface_form) && // 記号の除外
+          !/^[ぁ-ん]{1}$/.test(token.surface_form) && // ひらがな一文字の除外
+          token.surface_form.length !== 1 && // 1文字のみの単語を除外
+          !/ー{2,}/.test(token.surface_form) && // 伸ばし棒2文字以上の単語を除外
+          !EXCLUDE_WORDS.includes(token.surface_form) // EXCLUDE_WORDSに含まれていない
+        );
+
+        const nounArray = nouns.map(noun => noun.surface_form);
+        resolve(nounArray);
+
+      } catch (err) {
+        console.warn(`[WARN] word analyze error occurred`);
+        console.warn(err);
+        reject(err);
+      }
     });
   });
 }
