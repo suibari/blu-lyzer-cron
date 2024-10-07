@@ -42,6 +42,7 @@ const DEFAULT_PROFILE = (handle) => {
   const yesterday = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48時間前
   const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 1週間前
 
+  /*
   data.forEach(row => {
     row.wordFreqMap.forEach(word => {
       const occurrences = word.occurrences;
@@ -128,6 +129,7 @@ const DEFAULT_PROFILE = (handle) => {
     throw error;
   }
   console.log(`trends: complete upsert`);
+  */
 
   // ---------------
   // Ranking
@@ -217,7 +219,7 @@ const DEFAULT_PROFILE = (handle) => {
 
   // ---------------
   // DB格納
-  // トレンドランキング
+  // ランキング
   try {
     ({error} = await supabase
       .from('statistics')

@@ -1,6 +1,10 @@
 import { WebSocket } from 'ws';
+import { supabase } from '../lib/supabase.js';
 import { getNouns } from '../wordfreq.js';
 import { calculateEMA } from '../statistics/average.js';
+
+const SPAN_CALC_EMA = 30 * 60 * 1000; // 30min
+// const SPAN_CALC_EMA = 60 * 1000; // 1min: debug
 
 let isProcessing = false;
 let wordData = [];
@@ -25,7 +29,7 @@ ws.on('open', () => {
 // メッセージ受信時
 ws.on('message', async (data) => {
   if (isProcessing) {
-    console.log('Processing is still in progress, skipping message.');
+    // console.log('Processing is still in progress, skipping message.');
     return;
   }
   
@@ -64,33 +68,61 @@ ws.on('error', (error) => {
 });
 
 // 1時間おきに実行する定期処理
-setInterval(() => {
-    console.log('Hourly analysis started');
+setInterval(async () => {
+  const wordEma = {};
+  console.log('Hourly analysis started');
 
-    // 1時間ごとの単語カウント
-    const wordCount = Array(24).fill(0).map(() => ({}));
-    const currentTime = Date.now();
+  // 1時間ごとの単語カウント
+  const wordCount = {};
+  const currentTime = Date.now();
 
-    wordData.forEach(({ noun, timestamp }) => {
-        const hoursAgo = Math.floor((currentTime - new Date(timestamp).getTime()) / (60 * 60 * 1000));
-        if (hoursAgo < 24) {
-            wordCount[noun][hoursAgo] = (wordCount[noun][hoursAgo] || 0) + 1;
-        }
+  wordData.forEach(({ noun, timestamp }) => {
+    const hoursAgo = Math.floor((currentTime - new Date(timestamp).getTime()) / SPAN_CALC_EMA);
+    if (hoursAgo < 24) {
+      if (wordCount[noun]) {
+        wordCount[noun][hoursAgo] += 1;
+      } else {
+        wordCount[noun] = Array(24).fill(0);
+        wordCount[noun][hoursAgo] += 1;
+      }
+    }
+  });
+
+  // 2つたまったらEMA計算
+  if (hourCnt > 0) {
+    // 各時間帯の単語カウントの指数移動平均(EMA)を計算
+    Object.keys(wordCount).forEach(noun => {
+      wordEma[noun] = calculateEMA(wordCount[noun], hourCnt + 1);
     });
 
-    // 各時間帯の単語カウントの指数移動平均(EMA)を計算
-    const emaData = calculateEMA(wordCount, hourCnt+1);
-
-    // 直近のEMAを基準に降順ソート
-    const sortedWords = Object.entries(emaData[0])
-        .sort((a, b) => b[1] - a[1]);
-
-    // hourCntをインクリメント、ただし23が上限
-    if (hourCnt < 24) {
-      hourCnt++;
-    }
+    // 直近のEMA[0]を基準に降順ソート
+    const sortedWords = Object.entries(wordEma)
+      .sort((a, b) => b[1][0] - a[1][0])
+      .map(([noun, ema]) => ({ noun, count: ema }));
 
     // ソート結果をデータベースに保存（仮の例としてコンソール出力）
-    console.log('Top words based on recent EMA:', sortedWords);
+    const {data, error} = await supabase.from('statistics').update({
+      data: {
+        trendsEma: sortedWords.slice(0, 100),
+        trendsToday: sortedWords.slice(0, 100), // いつか消す
+        trendsIncRate: sortedWords.slice(0, 100), // いつか消す
+      },
+      updated_at: new Date(),
+    })
+    .eq('id', 'trend')
+    .select();
 
-}, 60 * 60 * 1000); // 1時間おき
+    if (error) {
+      console.error(error);
+    } else {
+      console.log('Complete update DB by EMA');
+    }
+  } else {
+    console.log('Skip calc EMA for first process');
+  }
+
+  // hourCntをインクリメント、ただし23が上限
+  if (hourCnt < 24) {
+    hourCnt++;
+  }
+}, SPAN_CALC_EMA); // 1時間おき
