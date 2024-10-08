@@ -24,7 +24,7 @@ const EXCLUDE_WORDS = [
   "bsky", "social", // Bluesky
   "to", "the", "of", "you", "be", "in", "is", "it", "for", "that", "on", // 英語
   "ちんぽ", "ちんちん", // R-18
-  "なん", "あと", "うち", "たち", "とき", // 運用してみていらないもの
+  "なん", "あと", "うち", "たち", "とき", "感じ", "気持ち", "楽しみ", // 運用してみていらないもの
 ];
 
 const __filename = fileURLToPath(import.meta.url);

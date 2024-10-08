@@ -126,19 +126,30 @@ export async function analyzeRecords(records) {
   return result;
 }
 
-// レコードの平均間隔
 function calculateAverageInterval(records) {
-  records.sort((a, b) => new Date(a.value.createdAt) - new Date(b.value.createdAt));
+  const now = new Date();
+  const oneWeekAgo = new Date(now);
+  oneWeekAgo.setDate(now.getDate() - 7); // 7日前の日付を取得
+
+  // 1週間以内のレコードのみをフィルタリング
+  const recentRecords = records.filter(record => new Date(record.value.createdAt) >= oneWeekAgo);
+
+  // 作成日でソート
+  recentRecords.sort((a, b) => new Date(a.value.createdAt) - new Date(b.value.createdAt));
+
   let totalInterval = 0;
   let intervalsCount = 0;
-  for (let i = 1; i < records.length; i++) {
-    const currentTime = new Date(records[i].value.createdAt).getTime();
-    const previousTime = new Date(records[i - 1].value.createdAt).getTime();
+
+  // インターバルを計算
+  for (let i = 1; i < recentRecords.length; i++) {
+    const currentTime = new Date(recentRecords[i].value.createdAt).getTime();
+    const previousTime = new Date(recentRecords[i - 1].value.createdAt).getTime();
     const interval = currentTime - previousTime;
 
     totalInterval += interval;
     intervalsCount++;
   }
+
   const averageIntervalInSeconds = intervalsCount > 0 ? totalInterval / intervalsCount / 1000 : 0;
   return averageIntervalInSeconds;
 }
