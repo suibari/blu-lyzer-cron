@@ -41,9 +41,17 @@ export async function analyzeRecords(records) {
   // 平均ポスト間隔
   result.averagePostsInterval = calculateAverageInterval(records.posts);
 
-  // 最終活動時間
-  const lastActionTime = allRecords.length > 0 ? new Date(allRecords[allRecords.length - 1].value.createdAt) : null;
-  result.lastActionTime = lastActionTime;
+  // 最終活動時間を取得
+  if (allRecords.length > 0) {
+    // 作成日でソート
+    allRecords.sort((a, b) => new Date(b.value.createdAt) - new Date(a.value.createdAt));
+    
+    // 最後のレコードの作成日を取得
+    const lastActionTime = new Date(allRecords[allRecords.length - 1].value.createdAt);
+    result.lastActionTime = lastActionTime;
+  } else {
+    result.lastActionTime = null;
+  }
 
   // 頻出単語分析
   const { wordFreqMap, sentimentHeatmap } = await getNounFrequencies(records.posts);
