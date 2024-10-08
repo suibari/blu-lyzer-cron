@@ -44,18 +44,31 @@ const POLARITY_DICT_PATH = (PUBLIC_NODE_ENV === 'development') ? resolve(__dirna
   resolve(__dirname, '../../../../../../../src/lib/submodule/dict/pn.csv.m3.120408.trim'); // Vercel Env
 const polarityMap = await loadPolarityDictionary(); // 感情辞書をロード
 
+let tokenizer = null; // tokenizerをキャッシュする変数
+
 /**
  * テキストの配列から名詞の頻出TOP3を返す関数
  */
 export async function getNounFrequencies(posts) {
   return new Promise((resolve, reject) => {
-    tokenizerBuilder.build((err, tokenizer) => {
+    // tokenizerが既にビルド済みか確認
+    if (tokenizer) {
+      return processPosts();
+    }
+
+    tokenizerBuilder.build((err, builtTokenizer) => {
       if (err) {
         return reject(err);
       }
 
+      tokenizer = builtTokenizer; // tokenizerをキャッシュ
+      processPosts(); // postsの処理を実行
+    });
+
+    // posts処理を関数化
+    function processPosts() {
       const freqMap = {};
-      const sentimentHeatmap = new Array(24).fill(0) // 24時間ヒートマップを初期化
+      const sentimentHeatmap = new Array(24).fill(0); // 24時間ヒートマップを初期化
 
       posts.forEach(post => {
         let text = post.value.text;
@@ -89,7 +102,7 @@ export async function getNounFrequencies(posts) {
             const hourKey = jstDate.getUTCHours(); // JSTの時間を取得
 
             nouns.forEach(noun => {
-              
+
               const surfaceForm = noun.surface_form;
               const sentimentScore = polarityMap[surfaceForm] || 0;
 
@@ -123,7 +136,7 @@ export async function getNounFrequencies(posts) {
           // 日本語でないポストの場合、現状何もしない
           return;
         }
-      });      
+      });
 
       const wordFreqMap = Object.entries(freqMap)
         .sort(([, a], [, b]) => b.count - a.count)
@@ -137,7 +150,7 @@ export async function getNounFrequencies(posts) {
         }));
 
       resolve({ wordFreqMap, sentimentHeatmap });
-    });
+    }
   });
 }
 
@@ -146,18 +159,29 @@ export async function getNounFrequencies(posts) {
  */
 export async function getNouns(text) {
   return new Promise((resolve, reject) => {
+    // tokenizerが既にビルド済みか確認
+    if (tokenizer) {
+      return processText();
+    }
+
     // タイムアウトを5秒に設定
     const timeout = setTimeout(() => {
       reject(new Error('Tokenizer build timeout'));
     }, 5000);
 
-    tokenizerBuilder.build((err, tokenizer) => {
+    tokenizerBuilder.build((err, builtTokenizer) => {
       clearTimeout(timeout); // タイムアウトをクリア
 
       if (err) {
         return reject(err);
       }
 
+      tokenizer = builtTokenizer; // tokenizerをキャッシュ
+      processText(); // テキストの処理を実行
+    });
+
+    // テキスト処理を関数化
+    function processText() {
       // textがnull, undefined, 空文字でないことを確認
       if (typeof text !== 'string' || text.trim() === '') {
         return resolve([]); // 空の場合は処理をスキップし、空配列を返す
@@ -170,6 +194,7 @@ export async function getNouns(text) {
         const tokens = tokenizer.tokenize(text);
         const nouns = tokens.filter(token => 
           token.pos === '名詞' &&
+          (token.pos_detail_1 === '固有名詞' || token.pos_detail_1 === '一般') &&
           !/^[\d]+$/.test(token.surface_form) && // 数値の除外
           !/^[^\p{L}]+$/u.test(token.surface_form) && // 記号の除外
           !/^[ぁ-ん]{1}$/.test(token.surface_form) && // ひらがな一文字の除外
@@ -179,6 +204,7 @@ export async function getNouns(text) {
         );
 
         const nounArray = nouns.map(noun => noun.surface_form);
+        // console.log(nounArray)
         resolve(nounArray);
 
       } catch (err) {
@@ -186,7 +212,7 @@ export async function getNouns(text) {
         console.warn(err);
         reject(err);
       }
-    });
+    }
   });
 }
 
