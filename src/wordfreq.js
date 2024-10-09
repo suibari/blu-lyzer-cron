@@ -102,6 +102,7 @@ export async function getNounFrequencies(posts) {
             const hourKey = jstDate.getUTCHours(); // JSTの時間を取得
 
             nouns.forEach(noun => {
+              // console.log(noun);
 
               const surfaceForm = noun.surface_form;
               const sentimentScore = polarityMap[surfaceForm] || 0;
@@ -194,7 +195,7 @@ export async function getNouns(text) {
         const tokens = tokenizer.tokenize(text);
         const nouns = tokens.filter(token => 
           token.pos === '名詞' &&
-          (token.pos_detail_1 === '固有名詞' || token.pos_detail_1 === '一般') &&
+          (token.pos_detail_1 === '固有名詞' || token.pos_detail_1 === '普通名詞') &&
           !/^[\d]+$/.test(token.surface_form) && // 数値の除外
           !/^[^\p{L}]+$/u.test(token.surface_form) && // 記号の除外
           !/^[ぁ-ん]{1}$/.test(token.surface_form) && // ひらがな一文字の除外
