@@ -21,7 +21,7 @@ function saveWordData(noun, timestamp) {
 }
 
 // WebSocket接続
-const ws = new WebSocket(JETSTREAM_URL);
+let ws = new WebSocket(JETSTREAM_URL);
 
 // WebSocket接続時
 ws.on('open', () => {
