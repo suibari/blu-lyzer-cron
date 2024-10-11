@@ -199,7 +199,7 @@ const DEFAULT_PROFILE = (handle) => {
       
       // (followersCount / followsCount) * followersCount を計算
       const pointRaw = (followersCount / followsCount) * followersCount;
-      const point = pointRaw / row.averagePostsInterval;
+      const point = pointRaw / Math.sqrt(row.averagePostsInterval);
 
       return {
         handle: row.handle,

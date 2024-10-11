@@ -46,8 +46,8 @@ export async function analyzeRecords(records) {
     // 作成日でソート
     allRecords.sort((a, b) => new Date(b.value.createdAt) - new Date(a.value.createdAt));
     
-    // 最後のレコードの作成日を取得
-    const lastActionTime = new Date(allRecords[allRecords.length - 1].value.createdAt);
+    // 最新のレコードの作成日を取得
+    const lastActionTime = new Date(allRecords[0].value.createdAt);
     result.lastActionTime = lastActionTime;
   } else {
     result.lastActionTime = null;
