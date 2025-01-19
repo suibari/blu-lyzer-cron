@@ -5,7 +5,6 @@ import path, { resolve } from 'path';
 import { fileURLToPath } from 'url';
 dotenv.config();
 const PUBLIC_NODE_ENV = process.env.PUBLIC_NODE_ENV;
-dotenv.config();
 
 const EXCLUDE_WORDS = [
   "こと", "これ", "それ", "そう", "どこ", 
@@ -27,132 +26,95 @@ const EXCLUDE_WORDS = [
   "なん", "あと", "うち", "たち", "とき", "感じ", "気持ち", "楽しみ", // 運用してみていらないもの
 ];
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Kuromoji tokenizerのビルダー:
-// 辞書はサイズ制限でneologdをVercelに上げられないので、Vercel上ではIPAdic、ローカルではneologdを使う
-// Raspiバッチ処理について、neologdは時間がかかりすぎる(200rec/h)ので、当面IPAを使用
-const dicPath = (PUBLIC_NODE_ENV === 'development') ? resolve(__dirname, '../dict/dict_neologd_full') : // Local Env
-  (PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../dict') : // Raspi Cron Server
-  resolve(__dirname, '../../../../../../../src/lib/submodule/dict') ; // Vercel Env
-const tokenizerBuilder = kuromoji.builder({ dicPath: dicPath });
-
-// 感情辞書ファイルパス
-const POLARITY_DICT_PATH = (PUBLIC_NODE_ENV === 'development') ? resolve(__dirname, '../dict/pn.csv.m3.120408.trim') : // Local Env
-  (PUBLIC_NODE_ENV === 'cron-server') ? resolve(__dirname, '../dict/pn.csv.m3.120408.trim') : // Raspi Cron Server
-  resolve(__dirname, '../../../../../../../src/lib/submodule/dict/pn.csv.m3.120408.trim'); // Vercel Env
-const polarityMap = await loadPolarityDictionary(); // 感情辞書をロード
-
-let tokenizer = null; // tokenizerをキャッシュする変数
-
 /**
  * テキストの配列から名詞の頻出TOP3を返す関数
  */
 export async function getNounFrequencies(posts) {
-  return new Promise((resolve, reject) => {
-    // tokenizerが既にビルド済みか確認
-    if (tokenizer) {
-      return processPosts();
-    }
+  const wordFreqMap = [];
+  const sentimentHeatmap = new Array(24).fill(0); // 24時間ヒートマップを初期化
 
-    tokenizerBuilder.build((err, builtTokenizer) => {
-      if (err) {
-        return reject(err);
-      }
+  // posts[].value.textを二次元リストに変換
+  const textsArray = posts
+    .filter(post => {
+      // 日本語ポストであるか、空でないテキストかを確認
+      return (
+        typeof post.value.text === 'string' &&
+        post.value.text.trim() !== '' &&
+        post.value.langs &&
+        post.value.langs.includes("ja")
+      );
+    })
+    .map(post => [post.value.text.replace(/\0/g, '')]); // ヌル文字を空文字に置換し、配列にする
 
-      tokenizer = builtTokenizer; // tokenizerをキャッシュ
-      processPosts(); // postsの処理を実行
+  // textが空なら何もせずに終了
+  if (!textsArray || textsArray.length === 0) {
+    console.log('[INFO] No valid text to analyze');
+    return { wordFreqMap, sentimentHeatmap };
+  }
+
+  try {
+    // ネガポジフェッチ
+    const response = await fetch(process.env.NEGAPOSI_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ texts: textsArray }), // 全てのテキストを一度に送信
     });
 
-    // posts処理を関数化
-    function processPosts() {
-      const freqMap = {};
-      const sentimentHeatmap = new Array(24).fill(0); // 24時間ヒートマップを初期化
+    if (response.ok) {
+      const { nouns_counts, average_sentiments } = await response.json();
 
-      posts.forEach(post => {
-        let text = post.value.text;
+      // const nouns = tokens.filter(token =>
+      //   token.part_of_speech === '名詞' &&
+      //   !/^[\d]+$/.test(token.token) && // 数値の除外
+      //   !/^[^\p{L}]+$/u.test(token.token) && // 記号の除外
+      //   !/^[ぁ-ん]{1}$/.test(token.token) && // ひらがな一文字の除外
+      //   token.token.length !== 1 && // 1文字のみの単語を除外
+      //   !/ー{2,}/.test(token.token) && // 伸ばし棒2文字以上の単語を除外
+      //   !EXCLUDE_WORDS.includes(token.token) // EXCLUDE_WORDSに含まれていない
+      // );
 
-        // textがnull, undefined, 空文字でないことを確認
-        if (typeof text !== 'string' || text.trim() === '') {
-          return; // 空の場合は処理をスキップ
-        }
-
-        // ヌル文字を空文字に置換
-        text = text.replace(/\0/g, '');
-
-        // 日本語ポストであることを確認
-        if (post.value.langs && post.value.langs.includes("ja")) {   
-        
-          try {
-            const tokens = tokenizer.tokenize(text);
-            const nouns = tokens.filter(token => 
-              token.pos === '名詞' &&
-              !/^[\d]+$/.test(token.surface_form) && // 数値の除外
-              !/^[^\p{L}]+$/u.test(token.surface_form) && // 記号の除外
-              !/^[ぁ-ん]{1}$/.test(token.surface_form) && // ひらがな一文字の除外
-              token.surface_form.length !== 1 && // 1文字のみの単語を除外
-              !/ー{2,}/.test(token.surface_form) && // 伸ばし棒2文字以上の単語を除外
-              !EXCLUDE_WORDS.includes(token.surface_form) // EXCLUDE_WORDSに含まれていない
-            );
-
-            const createdAt = new Date(post.value.createdAt);
-            const utcDate = new Date(createdAt.getTime());
-            const jstDate = new Date(utcDate.getTime() + 9*60*60*1000); // JSTに変換
-            const hourKey = jstDate.getUTCHours(); // JSTの時間を取得
-
-            nouns.forEach(noun => {
-              // console.log(noun);
-
-              const surfaceForm = noun.surface_form;
-              const sentimentScore = polarityMap[surfaceForm] || 0;
-
-              if (!freqMap[surfaceForm]) {
-                freqMap[surfaceForm] = {
-                  count: 0,
-                  firstSeen: createdAt,
-                  lastSeen: createdAt,
-                  sentimentScoreSum: 0, // 感情スコア合計
-                  occurrences: [],
-                };
-              }
-              freqMap[surfaceForm].count++;
-              freqMap[surfaceForm].lastSeen = createdAt;
-              freqMap[surfaceForm].sentimentScoreSum += sentimentScore; // 感情スコアを加算
-              sentimentHeatmap[hourKey] += sentimentScore;
-
-              // occurrencesにポストIDと日時を追加
-              freqMap[surfaceForm].occurrences.push({
-                timestamp: createdAt,
-                postId: post.uri,
-              });
-            });
-
-          } catch (err) {
-            console.warn(`[WARN] word analyze error occur`);
-            console.warn(err);
-          }
-          
-        } else {
-          // 日本語でないポストの場合、現状何もしない
-          return;
-        }
+      nouns_counts.forEach((elem, index) => {
+        wordFreqMap.push({
+          noun: elem.noun,
+          count: elem.count,
+          sentimentScoreSum: elem.sentiment_sum,
+        });
       });
 
-      const wordFreqMap = Object.entries(freqMap)
-        .sort(([, a], [, b]) => b.count - a.count)
-        .map(([noun, data]) => ({
-          noun,
-          count: data.count,
-          firstSeen: data.firstSeen,
-          lastSeen: data.lastSeen,
-          sentimentScore: data.sentimentScoreSum,
-          occurrences: data.occurrences,
-        }));
+      const sentimentAccumulator = {};
+      average_sentiments.forEach((elem, index) => {
+        const createdAt = new Date(posts[index].value.createdAt);
+        const utcDate = new Date(createdAt.getTime());
+        const jstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000); // JSTに変換
+        const hourKey = jstDate.getUTCHours(); // JSTの時間を取得
 
-      resolve({ wordFreqMap, sentimentHeatmap });
+        // 初期化（存在しない場合のみ）
+        if (!sentimentAccumulator[hourKey]) {
+          sentimentAccumulator[hourKey] = { sum: 0, count: 0 };
+        }
+
+        // 累積値とカウントを更新
+        sentimentAccumulator[hourKey].sum += elem;
+        sentimentAccumulator[hourKey].count += 1;
+      });
+
+      // 各hourKeyの平均値を計算してHeatmapに格納
+      Object.keys(sentimentAccumulator).forEach((hourKey) => {
+        const { sum, count } = sentimentAccumulator[hourKey];
+        sentimentHeatmap[hourKey] = count > 0 ? sum / count : 0; // 平均値を格納
+      });
+
+    } else {
+      throw new Error('Failed to fetch sentiment from NEGPOSI_API');
     }
-  });
+  } catch (err) {
+    console.warn('[WARN] word analyze error occurred');
+    console.warn(err);
+  }
+
+  return { wordFreqMap, sentimentHeatmap };
 }
 
 /**
@@ -214,32 +176,5 @@ export async function getNouns(text) {
         reject(err);
       }
     }
-  });
-}
-
-/**
- * 感情辞書を読み込み、単語とスコアのマップを作成
- * @returns {Promise<Object>} 単語と感情スコアのマップ
- */
-async function loadPolarityDictionary() {
-  const polarityMap = {};
-
-  return new Promise((resolve, reject) => {
-    fs.readFile(POLARITY_DICT_PATH, 'utf8', (err, data) => {
-      if (err) {
-        return reject(err);
-      }
-
-      const lines = data.split('\n');
-      lines.forEach(line => {
-        const [word, score] = line.split('\t'); // タブ区切りで単語と感情値を取得
-        if (word && score) {
-          // ポジティブ => +1、ネガティブ => -1、中立 => 0
-          polarityMap[word] = score === 'p' ? 1 : score === 'n' ? -1 : 0;
-        }
-      });
-
-      resolve(polarityMap);
-    });
   });
 }
